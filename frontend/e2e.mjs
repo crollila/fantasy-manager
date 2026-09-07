@@ -5,6 +5,7 @@ const page=await browser.newPage({viewport:{width:1440,height:1050}});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 try{
  await page.goto('http://127.0.0.1:8000');
+ await page.getByRole('button',{name:'Advanced tools',exact:true}).click();
  await page.getByRole('heading',{name:'Draft room',exact:true}).waitFor();
  await page.getByText('TOP RECOMMENDATION').waitFor();
  await page.getByRole('button',{name:'Player projections',exact:true}).click();

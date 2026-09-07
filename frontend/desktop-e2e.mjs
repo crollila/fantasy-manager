@@ -1,0 +1,32 @@
+import {_electron as electron} from '@playwright/test';
+import path from 'node:path';
+import fs from 'node:fs/promises';
+const root=path.resolve('..');
+const installed=process.env.FANTASY_TEST_EXE;
+const instance=await electron.launch({executablePath:installed||path.join(root,'release','win-unpacked','Fantasy Manager.exe'),env:{...process.env,FANTASY_DATA_DIR:path.join(root,'storage','desktop-e2e')},timeout:90000});
+try{
+ const page=await instance.firstWindow({timeout:90000});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.getByRole('heading',{name:'Make the right starts.'}).waitFor();
+ const base=new URL(page.url()).origin;
+ const b=await (await fetch(base+'/api/bootstrap')).json();
+ if(b.version!=='0.3.0')throw new Error('Wrong frozen backend version');
+ await page.getByRole('button',{name:'Connect my first team'}).waitFor();
+ await page.getByRole('button',{name:'+ Connect ESPN',exact:true}).click();
+ await page.getByRole('button',{name:'Open ESPN & sign in'}).waitFor();
+ if(!await page.evaluate(()=>typeof window.fantasyDesktop?.connect==='function'))throw new Error('Desktop preload unavailable');
+ await page.screenshot({path:path.join(root,'storage','desktop-home.png'),fullPage:true});
+ await page.getByRole('button',{name:'Advanced tools',exact:true}).click();
+ await page.getByRole('heading',{name:'Draft room',exact:true}).waitFor();
+ await page.getByRole('button',{name:'My lineup',exact:true}).click();
+ const p={id:'fixture-b',name:'Example healthy receiver',position:'WR',team:'DEMO',mean:14.2,p10:5.5,p90:25.6,boom:.19,bust:.2,injury_status:'ACTIVE',play_probability:1,locked:false,warnings:['Synthetic UI test'],injury:{},game:{opponent:'TEST'},usage:{targets:7.5}};
+ await page.route('**/api/leagues/*/lineup',r=>r.fulfill({json:{starters:[{slot:'WR',player:p}],bench:[],projected_points:14.2,p10:5.5,p90:25.6,improvement:1.2,start:[p.name],sit:[],empty_slots:0,roster_updated:null,injury_source:{status:'fixture'},notes:['Synthetic test'],missing_projections:[]}}));
+ await page.getByRole('button',{name:'Find my best lineup'}).click();
+ await page.getByRole('heading',{name:'14.2 projected points'}).waitFor();
+ await page.getByRole('button',{name:p.name,exact:true}).click();
+ await page.getByRole('heading',{name:'Recent usage'}).waitFor();
+ await page.getByRole('button',{name:'Close',exact:true}).click();
+ if(errors.length)throw new Error(errors.join('\n'));
+ await fs.writeFile(path.join(root,'storage','desktop-test.json'),JSON.stringify({passed:true,installed:!!installed,version:b.version,checks:['frozen backend starts','bundled UI loads','ESPN connection onboarding','sandboxed preload','advanced navigation','lineup rendering','player detail modal'],consoleErrors:errors},null,2));
+ console.log('Packaged desktop tests passed.');
+}finally{await instance.close();}

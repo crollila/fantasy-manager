@@ -2,13 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
 import {Lineup} from './Lineup';
+import {Home} from './Home';
 type League={id:string;name:string;season:number;teams:number;my_team:number;slots:Record<string,number>;bench:number;mode:string;settings_verified:boolean;team_names:string[];draft_type:string;[key:string]:unknown};
 type Pick={number:number;team:number;player_id:string};
 type Player={id:string;name:string;position:string;team:string;mean:number;median:number;p10:number;p90:number;vorp:number;vonp?:number;gone?:number|null;bust:number;breakout:number;adp:number|null;tier:number;warnings:string[];independent:number;market:number|null;top3:number;top5:number;top12:number;expected_games:number;championship_probability?:number|null;championship_delta?:number|null;delta_ci95?:number[];next_targets?:{id:string;probability:number}[]};
 type State={league:League;draft:{picks:Pick[];revision:number;updated:string|null;source:string|null};players:Player[];recommendations:Player[];warnings:string[];current_owner:number|null;catalog:{updated:string|null;revision:number}};
 type Job={id:string;kind:string;status:string;error?:string;stale?:boolean;seconds?:number;result?:Record<string,unknown>&{results?:Partial<Player>[]}};
 let token='';
-async function api<T>(url:string,body?:unknown,method?:string):Promise<T>{const r=await fetch('/api'+url,{method:method??(body===undefined?'GET':'POST'),headers:{'Content-Type':'application/json','X-Local-Token':token},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw new Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data;}
+async function api<T>(url:string,body?:unknown,method?:string):Promise<T>{const r=await fetch('/api'+url,{method:method??(body===undefined?'GET':'POST'),headers:{'Content-Type':'application/json','X-Local-Token':token},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(url==='/bootstrap'&&r.ok)token=data.token;if(!r.ok)throw new Error(typeof data.detail==='string'?data.detail:JSON.stringify(data.detail));return data;}
 const num=(v:number|undefined|null)=>v==null?'—':v.toFixed(1);
 const pct=(v:number|undefined|null)=>v==null?'Unavailable':`${(v*100).toFixed(1)}%`;
 function download(name:string,data:unknown){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download=name;a.click();URL.revokeObjectURL(a.href);}
@@ -53,4 +54,5 @@ function App(){
  {selected&&<div className="modal-backdrop" onClick={()=>setSelected(null)}><section className="modal" onClick={e=>e.stopPropagation()}><button className="close" onClick={()=>setSelected(null)}>Close</button><span className={`position ${selected.position}`}>{selected.position}</span><h2>{selected.name}</h2><p>{selected.team} · ID <code>{selected.id}</code></p><p>Expected games {num(selected.expected_games)} · Top 3 {pct(selected.top3)} · Top 5 {pct(selected.top5)} · Top 12 {pct(selected.top12)}</p><p>P10 {num(selected.p10)} · Median {num(selected.median)} · P90 {num(selected.p90)}</p>{selected.warnings.map((w,i)=><p className="warning" key={i}>{w}</p>)}</section></div>}</div>;
 }
 function Result({value}:{value:unknown}){return <section className="card"><div className="toolbar"><h3>Analysis result</h3><button onClick={()=>download('fantasy-analysis.json',value)}>Export JSON</button></div><pre>{JSON.stringify(value,null,2)}</pre></section>;}
-createRoot(document.getElementById('root')!).render(<App/>);
+function Root(){const [advanced,setAdvanced]=useState(false);return advanced?<><button className="back-home" onClick={()=>setAdvanced(false)}>← Back to my teams</button><App/></>:<Home api={api} onAdvanced={()=>setAdvanced(true)}/>;}
+createRoot(document.getElementById('root')!).render(<Root/>);

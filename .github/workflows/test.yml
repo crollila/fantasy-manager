@@ -21,3 +21,4 @@ jobs:
       - run: npm --prefix frontend ci
       - run: npm --prefix frontend test
       - run: npm --prefix frontend run build
+      - run: node --test desktop/*.test.cjs

@@ -14,3 +14,8 @@ storage/
 .agents/
 playwright-report/
 test-results/
+
+.build-venv/
+build/
+release/
+*.spec

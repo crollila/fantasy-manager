@@ -51,3 +51,14 @@ Detailed reproducible outputs are saved locally in `storage/validation.json`, `s
 ## Weekly lineup update — 2026-09-07
 
 The league-snapshot adapter, atomic imports, correct-week forecast validation, injury ID matching, OUT/IR exclusions, byes, locked starters and exact-provider-scoring fallback now have automated coverage. The full Python suite passes, as do six extension parser tests and Chrome checks for lineup/bench rendering and player details. The live injury adapter returned 800 ESPN-ID-linked records. Private ESPN league access remains an acceptance test requiring the user’s league IDs/session. See docs/WEEKLY_LINEUPS.md for provisional probability assumptions and coverage limits.
+
+
+## Windows release 0.3.0
+
+- 42 Python tests passed using the pinned Windows build environment.
+- Six extension parser tests and two desktop URL/argument validation tests passed.
+- TypeScript check and Vite production build passed.
+- Frozen executable integration: real ESPN-format fixture import, saved connections, injury exclusion, lineup optimization, demo projections and bundled HTML passed.
+- Packaged and installed Electron UI tests passed: startup, onboarding, isolated preload, advanced navigation, lineup rendering and player details. Rendering checks use a synthetic forecast response; the separate frozen integration test exercises the real engine.
+- Per-user NSIS installation returned exit code 0, and the installed copy passed the same desktop test. Installer is unsigned. Windows 10/11 x64 is the distribution target; local validation ran on Windows 11 x64.
+- User league links and existing model cache were migrated locally, outside the source and installer. Public roster access was checked; private league end-to-end sync still requires the user to authenticate in the app. Automated tests do not claim authenticated ESPN account coverage.

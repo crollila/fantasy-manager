@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import os
+import sys
 import secrets
 import sqlite3
 from contextlib import contextmanager
@@ -8,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from app.domain import League, Player, Pick, Event, validate_picks
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
 DATA = Path(os.environ.get("FANTASY_DATA_DIR", ROOT / "storage"))
 
 

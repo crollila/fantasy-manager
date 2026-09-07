@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import os
 import json
 import secrets
 import threading
@@ -120,18 +121,18 @@ async def lifespan(app):
     task.cancel()
 
 
-app = FastAPI(title="Fantasy Manager",version="0.1.0",lifespan=lifespan)
+app = FastAPI(title="Fantasy Manager",version="0.3.0",lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=["127.0.0.1","localhost","testserver"])
 
 
 @app.middleware("http")
 async def local_auth(request:Request,call_next):
     origin = request.headers.get("origin","")
-    allowed_origin = origin in ("http://127.0.0.1:8000","http://localhost:8000","http://127.0.0.1:5173","http://localhost:5173")
+    allowed_origin = origin == f"http://127.0.0.1:{os.environ.get('FANTASY_PORT','8000')}" or origin in ("http://127.0.0.1:8000","http://localhost:8000","http://127.0.0.1:5173","http://localhost:5173")
     if request.url.path.startswith("/api/"):
         if origin and not allowed_origin and not origin.startswith("chrome-extension://"):
             return JSONResponse({"detail":"Origin not allowed"},403)
-        if request.url.path != "/api/bootstrap":
+        if request.url.path not in ("/api/bootstrap","/api/health"):
             if not secrets.compare_digest(request.headers.get("x-local-token",""),store.token):
                 return JSONResponse({"detail":"Local pairing token required"},401)
         elif origin.startswith("chrome-extension://"):
@@ -148,9 +149,40 @@ async def value_error(request,exc):
     return JSONResponse({"detail":str(exc)},400)
 
 
+@app.get("/api/health")
+def health():
+    return {"app":"fantasy-manager","version":"0.3.0","instance":os.environ.get("FANTASY_INSTANCE","")}
+
+
+@app.get("/api/connections")
+def connections():
+    with store.connect() as c:
+        row=c.execute("SELECT value FROM meta WHERE key='connections'").fetchone()
+    return json.loads(row[0]) if row else []
+
+
+class ConnectionRequest(Strict):
+    url: str
+    name: str = "My ESPN team"
+
+
+@app.post("/api/connections")
+def save_connection(body:ConnectionRequest):
+    from urllib.parse import urlparse,parse_qs
+    parsed=urlparse(body.url)
+    query=parse_qs(parsed.query)
+    if parsed.scheme!="https" or parsed.netloc!="fantasy.espn.com" or parsed.path!="/football/team" or not query.get("leagueId",[""])[0].isdigit() or not query.get("teamId",[""])[0].isdigit():
+        raise ValueError("Paste the ESPN My Team URL")
+    rows=connections()
+    item={"url":body.url,"name":body.name,"league_id":query["leagueId"][0]}
+    rows=[r for r in rows if r["league_id"]!=item["league_id"]]+[item]
+    with store.connect() as c:c.execute("INSERT OR REPLACE INTO meta VALUES('connections',?)",(json.dumps(rows),))
+    return rows
+
+
 @app.get("/api/bootstrap")
 def bootstrap():
-    return {"token":store.token,"version":"0.1.0","leagues":[l.model_dump() for l in store.leagues()]}
+    return {"token":store.token,"version":"0.3.0","leagues":[l.model_dump() for l in store.leagues()]}
 
 
 @app.get("/api/leagues")
@@ -386,7 +418,9 @@ def import_espn(request_body:ESPNImportRequest):
     config=ESPNSyncRequest.model_validate({k:body[k] for k in ('league_id','my_team_id','season','week')})
     if str(body.get('snapshot',{}).get('id'))!=config.league_id:
         raise ValueError('Snapshot and requested league differ')
-    return save_snapshot(store,body['snapshot'],config.my_team_id,config.season,config.week)
+    result=save_snapshot(store,body['snapshot'],config.my_team_id,config.season,config.week)
+    save_connection(ConnectionRequest(url=f'https://fantasy.espn.com/football/team?leagueId={config.league_id}&teamId={config.my_team_id}&seasonId={config.season}',name=result['league']['team_names'][result['league']['my_team']]))
+    return result
 
 
 class LineupRequest(Strict):
