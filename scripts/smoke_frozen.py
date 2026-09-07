@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix='fantasy-frozen-') as data:
     log_path = ROOT / 'storage' / 'frozen-test.log'
     log_path.parent.mkdir(exist_ok=True)
     with log_path.open('w') as log:
-        process = subprocess.Popen([str(ROOT / 'build/backend/FantasyBackend/FantasyBackend.exe')], env={**os.environ, 'FANTASY_DATA_DIR': data, 'FANTASY_PORT': str(port)}, stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW)
+        process = subprocess.Popen([str(ROOT / 'build/backend/FantasyBackend/FantasyBackend.exe')], env={**os.environ, 'FANTASY_DISABLE_AUTO_REFRESH':'1', 'FANTASY_DATA_DIR': data, 'FANTASY_PORT': str(port)}, stdout=log, stderr=log, creationflags=subprocess.CREATE_NO_WINDOW)
         token = ''
         def api(route, body=None):
             request = urllib.request.Request(f'http://127.0.0.1:{port}/api{route}', data=json.dumps(body).encode() if body is not None else None, headers={'Content-Type': 'application/json', 'X-Local-Token': token})
@@ -40,6 +40,8 @@ with tempfile.TemporaryDirectory(prefix='fantasy-frozen-') as data:
             imported = api('/espn/import', {'league_id': '123', 'my_team_id': 5, 'season': 2026, 'week': 1, 'snapshot': fixture()})
             assert imported['players_synced'] == 2
             assert len(api('/connections')) == 1
+            assert api('/intelligence')['accuracy']['games_graded']==0
+            assert api('/intelligence/refresh',{})['status']=='complete'
             advice = api('/leagues/123/lineup', {'week': 1, 'risk': 'balanced'})
             assert advice['starters'][0]['player']['name'] == 'B'
             assert advice['bench'][0]['name'] == 'A'

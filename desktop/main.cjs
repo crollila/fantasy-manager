@@ -45,6 +45,11 @@ async function start(){
  ipcMain.handle('open-data',event=>{trusted(event);return shell.openPath(dataDir);});
  ipcMain.handle('espn-refresh',async(event,options)=>{trusted(event);const {team,week}=validOptions(options);if(!team)throw new Error('Choose a connected team.');return sync(team,week);});
  ipcMain.handle('espn-connect',async(event,options)=>{trusted(event);return connect(options);});
+ ipcMain.handle('refresh-saved',async event=>{
+  trusted(event);const report=await local('/intelligence'),connections=await local('/connections');let synced=0;const errors=[];
+  for(const connection of connections){const target=teamLink(connection.url);if(!target||target.season!==report.season)continue;try{await sync(target,report.week);await local(`/leagues/${target.league_id}/lineup`,{week:report.week,risk:'balanced',refresh_injuries:false});synced++;}catch{errors.push(connection.name+' needs sign-in or roster data');}}
+  return {synced,errors};
+ });
  await mainWindow.loadURL(base);mainWindow.show();
  if(process.env.FANTASY_SMOKE_TEST){await mainWindow.webContents.executeJavaScript('document.title');fs.writeFileSync(path.join(dataDir,'desktop-smoke.json'),JSON.stringify({ok:true,version:app.getVersion(),title:await mainWindow.webContents.executeJavaScript('document.title'),url:base}));app.quit();}
 }

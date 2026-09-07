@@ -62,3 +62,15 @@ The league-snapshot adapter, atomic imports, correct-week forecast validation, i
 - Packaged and installed Electron UI tests passed: startup, onboarding, isolated preload, advanced navigation, lineup rendering and player details. Rendering checks use a synthetic forecast response; the separate frozen integration test exercises the real engine.
 - Per-user NSIS installation returned exit code 0, and the installed copy passed the same desktop test. Installer is unsigned. Windows 10/11 x64 is the distribution target; local validation ran on Windows 11 x64.
 - User league links and existing model cache were migrated locally, outside the source and installer. Public roster access was checked; private league end-to-end sync still requires the user to authenticate in the app. Automated tests do not claim authenticated ESPN account coverage.
+
+
+## Windows release 0.4.0 — 2026-09-07
+
+- 57 Python tests passed in the pinned Windows build environment. New cases cover conditional injury points, report negation, opponent-strength confounding, ESPN yardage/position scoring, live remaining production, legal matchup optimization, pregame cutoffs, idempotent grading, ties/pushes, learned blend thresholds and quoted-odds paper returns.
+- Six extension parser tests and two desktop URL/argument tests passed; TypeScript/Vite production build passed.
+- Frozen executable API checks passed, including the intelligence endpoints, league import and real lineup engine.
+- Packaged and installed Electron checks passed for onboarding, game cards/details, accuracy, data availability, lineup rendering and player details. These UI checks use explicitly synthetic responses; screenshot layouts were reviewed.
+- A separate installed-app check used real public data and the existing local database. Automatic refresh produced 16 Week 1 forecasts from 1,087 historical games and 1,632 replacement examples, and retained zero graded games because no forecasted game had finished. Real-data game/accuracy screens rendered successfully.
+- Held-out 2025 diagnostic: 272 games, 59.41% decisive winner accuracy, available market-favorite accuracy 65.31%, team score MAE 7.72. The different market coverage and actual historical weather/QB inputs are explicitly disclosed. This is not the prospective record or evidence of a market edge.
+- NSIS upgrade returned exit code 0. Installed and packaged versions both reported 0.4.0. Installer SHA-256: `42ee1e577456a3b55237f3bd63cc50050bb51fc1814aac6629f1fe6db40f1473` (197,909,769 bytes). The installer remains unsigned.
+- Authenticated private-league access, licensed market credentials, calibrated participation probabilities and fully causal personnel/weather effects are not established by these tests. See docs/INTELLIGENCE.md for specific coverage limits.

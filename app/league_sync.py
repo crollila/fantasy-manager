@@ -41,7 +41,8 @@ def normalize(payload,my_team_id,season,week,existing):
         # Positional scoring overrides cannot be collapsed into one coefficient.
         if item.get('pointsOverrides'):special.append(str(item['statId'])+' position overrides')
         points=float(item.get('points',0));key=stat_key(item['statId'])
-        scoring[key]=scoring.get(key,0)+points
+        from app.scoring_support import normalized_item
+        for mapped,value in normalized_item(item['statId'],points,stat_key).items():scoring[mapped]=scoring.get(mapped,0)+value
         if key.startswith('espn_stat_') and points:special.append(str(item['statId']))
     schedule=settings.get('scheduleSettings',{})
     playoff=min(len(teams),int(schedule.get('playoffTeamCount',min(6,len(teams)))))

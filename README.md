@@ -3,18 +3,24 @@
 
 **[Download the Windows app](https://github.com/crollila/fantasy-manager/releases/latest)** · [Installation and ESPN setup](docs/DESKTOP.md)
 
-Version 0.3 adds a standalone Windows application and installer. The simpler home screen puts your teams first, with one **Find my best lineup** action and draft/research features under **Advanced tools**. Connect public or private leagues through an isolated ESPN sign-in window; no copying league IDs or cookies is required. Sign-in is performed by you, and ESPN account access is not bundled with the app. The installer includes Python, the analysis engine, and the desktop UI.
+Version 0.4 includes a standalone Windows application and installer. The simpler home screen puts your teams first, with one **Find my best lineup** action and draft/research features under **Advanced tools**. Connect public or private leagues through an isolated ESPN sign-in window; no copying league IDs or cookies is required. Sign-in is performed by you, and ESPN account access is not bundled with the app. The installer includes Python, the analysis engine, and the desktop UI.
 
 Your league links, database and ESPN session remain on your computer. The public repository and downloads contain application code only. The current installer is unsigned. See the desktop guide for data locations, offline operation, authentication limitations and reproducible builds.
 
 
 Local-first fantasy football research and decision support: Python/FastAPI, SQLite, cached Parquet, React/TypeScript, and a read-only Chrome Manifest V3 ESPN monitor.
 
-**This is a working, tested local application, not a validated production championship oracle.** The core engines and replay pipeline work. Live ESPN compatibility, your two exact league configurations, current market feeds and several advanced modeling requirements still need the inputs and validation listed below. Never interpret simulated championship probabilities as established real-world odds.
+**This is a working, tested local application, not a validated production championship oracle.** The core engines and replay pipeline work. Live ESPN compatibility, authenticated private-league configurations, current market feeds and several advanced modeling requirements still need the inputs and validation listed below. Never interpret simulated championship probabilities as established real-world odds.
 
-## New: injury-aware weekly lineups
+## New: weekly context, NFL picks and automatic tracking
 
-Open **My lineup** to sync an ESPN league and compare recommended starters with your current lineup. Public leagues sync directly; private leagues use the Chrome extension while you are logged in. Per-player cards show weekly projections, floor/ceiling, boom/bust estimates, injury status, availability assumptions and source freshness. Byes, IR/out players, ESPN slot eligibility and known game locks are respected.
+The home screen now includes **NFL games**, **Accuracy**, and **Data & evidence**. Weekly projections incorporate opponent-adjusted positional defense, home/away, weather and historical personnel effects. Injury participation probability is separate from full points-if-active. Game winner/score/spread/total picks are archived before kickoff and graded automatically; forecast errors and available postgame evidence remain visible. Refresh runs on app open and every 15 minutes while running.
+
+Read [how the models, data, updates and accuracy tracking work](docs/INTELLIGENCE.md). The model has no demonstrated advantage over market lines; live records are never backfilled from historical results.
+
+## Injury-aware weekly lineups
+
+Open **My lineup** to sync an ESPN league and compare recommended starters with your current lineup. Public leagues sync directly; private leagues use the desktop ESPN sign-in window or the Chrome extension while you are logged in. Per-player cards show weekly projections, floor/ceiling, boom/bust estimates, injury status, availability assumptions and source freshness. Byes, IR/out players, ESPN slot eligibility and known game locks are respected.
 
 See [weekly setup and modeling details](docs/WEEKLY_LINEUPS.md). Actual private-league access requires your league IDs/profile; it has not been verified against your personal leagues yet. The model reports missing data and does not claim to ingest every football statistic.
 
@@ -139,7 +145,7 @@ Include every team index. This updates season ownership without rewriting draft 
 
 ## Refresh, replay and tests
 
-Public refresh runs every six hours while the application is running, for configured real seasons. There is no machine-level scheduled task; if the app is closed, it does not refresh. Manual refresh is available in the UI or CLI. Failed refresh details are saved locally.
+Public intelligence refresh runs on app open and every 15 minutes while running; the season catalog refreshes every six hours for configured real seasons. There is no machine-level scheduled task; if the app is closed, it does not refresh. Manual refresh is available in the UI or CLI. Failed refresh details are saved locally.
 
 ```powershell
 .\.venv\Scripts\python.exe -m app.cli refresh --season 2026
@@ -196,9 +202,9 @@ Back up the whole `storage` directory with the app stopped (SQLite WAL may other
 
 The following requested capabilities are incomplete and should not be mistaken for implemented/validated features:
 
-- Your exact two ESPN configurations and a real logged-in draft-room acceptance test. The new snapshot bridge imports league settings, current rosters and weekly forecasts. Reliable virtualized draft-history extraction and continuous free-agent sync remain incomplete.
+- Authenticated private ESPN configurations and a real logged-in draft-room acceptance test. The new snapshot bridge imports league settings, current rosters and weekly forecasts. Reliable virtualized draft-history extraction and continuous free-agent sync remain incomplete.
 - Licensed FantasyPros/ECR/ADP history and current feeds; historical draft-policy backtests with vintage-correct news, rosters and market snapshots. No measurable championship advantage is established.
-- Automated routes/participation, snap trends, practice/injury/suspension feeds, coaching/QB/line changes, rookie draft-capital models, sportsbook inputs, strength-of-schedule and playoff matchup models. nflverse source breadth does not mean all those features are modeled.
+- Live routes/coverage participation, complete coaching/scheme histories, rookie draft-capital models, licensed player props and playoff schedule optimization. Version 0.4 adds public injury/depth evidence, historical snaps, opponent-adjusted matchups, QB/personnel effects, weather and optional sportsbook benchmarks; it does not imply all sources or effects are fully covered or validated.
 - Full correlated distribution calibration, manager-specific learned draft behavior, exhaustive multi-step optimization over all legal candidates, adaptive contingency trees, calibrated confidence and real-league season simulations with standings/schedules.
 - Auction/keeper/traded-pick rules, independently modeled full ESPN DST scoring bands, automatic transactions, multi-player add/drop trades and optimized FAAB bidding. Weekly lineups preserve known locks and use ESPN-scored projections for unsupported independent scoring.
 

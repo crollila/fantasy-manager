@@ -116,12 +116,23 @@ async def lifespan(app):
                     await asyncio.to_thread(refresh,season)
                 except Exception as exc:
                     (DATA / "refresh-error.json").write_text(json.dumps({"at":now(),"error":str(exc)}))
+    async def intelligence_schedule():
+        while True:
+            await asyncio.sleep(900)
+            if os.environ.get('FANTASY_DISABLE_AUTO_REFRESH')=='1':continue
+            try:
+                from app.intelligence import refresh_intelligence
+                await asyncio.to_thread(refresh_intelligence,store)
+            except Exception:
+                pass  # Coordinator persists the error and retains the previous forecast.
+    intel_task=asyncio.create_task(intelligence_schedule())
     task = asyncio.create_task(scheduled())
     yield
     task.cancel()
+    intel_task.cancel()
 
 
-app = FastAPI(title="Fantasy Manager",version="0.3.0",lifespan=lifespan)
+app = FastAPI(title="Fantasy Manager",version="0.4.0",lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=["127.0.0.1","localhost","testserver"])
 
 
@@ -151,7 +162,7 @@ async def value_error(request,exc):
 
 @app.get("/api/health")
 def health():
-    return {"app":"fantasy-manager","version":"0.3.0","instance":os.environ.get("FANTASY_INSTANCE","")}
+    return {"app":"fantasy-manager","version":"0.4.0","instance":os.environ.get("FANTASY_INSTANCE","")}
 
 
 @app.get("/api/connections")
@@ -182,7 +193,7 @@ def save_connection(body:ConnectionRequest):
 
 @app.get("/api/bootstrap")
 def bootstrap():
-    return {"token":store.token,"version":"0.3.0","leagues":[l.model_dump() for l in store.leagues()]}
+    return {"token":store.token,"version":"0.4.0","leagues":[l.model_dump() for l in store.leagues()]}
 
 
 @app.get("/api/leagues")
@@ -448,7 +459,31 @@ def weekly_lineup(league_id:str,body:LineupRequest):
             Cache().fetch(f'stats_{league.season}.parquet',f'{BASE}/stats_player/stats_player_week_{league.season}.parquet',ttl=3600)
         except Exception:
             pass  # weekly report explicitly marks missing recent usage
-    return lineup_advice(players,league,ids,meta,health,body.week,body.risk)
+    from app.intelligence import weekly_context
+    from app.tracking import blend_weight,save_players
+    context_data=weekly_context(store,league,body.week)
+    context_data['blend_weights']={pos:blend_weight(store,pos)[0] for pos in ('QB','RB','WR','TE','K','DST')}
+    opponent=meta.get('opponents',{}).get(str(league.my_team))
+    opponent_ids=[p.player_id for p in owned if opponent is not None and p.team==opponent]
+    advice=lineup_advice(players,league,ids,meta,health,body.week,body.risk,context=context_data,opponent_ids=opponent_ids)
+    save_players(store,league,advice)
+    return advice
+
+
+
+@app.get("/api/intelligence")
+def intelligence_state():
+    from app.intelligence import state
+    return state(store)
+
+
+@app.post("/api/intelligence/refresh")
+def intelligence_refresh():
+    from app.intelligence import refresh_intelligence
+    if os.environ.get('FANTASY_DISABLE_AUTO_REFRESH')=='1':return {'id':'disabled','status':'complete','kind':'intelligence'}
+    with job_lock:
+        running=next((j.copy() for j in jobs.values() if j['kind']=='intelligence' and j['status'] in ('queued','running')),None)
+    return running or submit('intelligence',lambda:refresh_intelligence(store))
 
 
 class TradeRequest(Strict):

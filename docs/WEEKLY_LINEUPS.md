@@ -4,6 +4,8 @@ The weekly assistant is inspired by the league-specific start/sit and range-of-o
 
 ## Connect a league
 
+In the Windows app use **Connect ESPN** and sign in in its separate window. The following ID/extension flow is also available under Advanced tools.
+
 Open **My lineup** in the app. The ESPN URL contains `leagueId` and usually `teamId`; enter both IDs, the season, and the scoring week. Click **Sync public league**. Select the resulting league in the sidebar. Repeat for another league.
 
 For private leagues:
@@ -20,7 +22,7 @@ The ESPN read API is undocumented. It is independently used by the maintained [e
 
 ## Analyze your lineup
 
-Select the same week as the imported snapshot and click **Analyze my lineup & injuries**. Choose highest expected points, floor, or upside. The report includes:
+Select the same week as the imported snapshot and click **Find my best lineup**. Choose highest expected points, floor, upside, or matchup win probability. The report includes:
 
 - Recommended starting slots and bench alternatives, respecting ESPN eligibility and available game-lock information.
 - Projected total and P10–P90 range, plus the change from your currently synced starters.
@@ -31,20 +33,16 @@ Each sync replaces ownership and weekly metadata atomically. A wrong-week snapsh
 
 ## Inputs and limits
 
-The model uses the independent historical opportunity/efficiency catalog, available prior current-season weekly usage (never the target week's actual results), ESPN's current weekly forecast, exact provider scoring, injury designations, byes, roster eligibility and scheduled kickoff times. Confirmed structured events continue to affect independent projections.
+Version 0.4 uses opponent-adjusted positional defense, league scoring, recent usage, depth-chart and historical backup evidence, home/away and team-specific weather effects. Full points-if-active are retained when play probability is at least 50%; unlikely/out/bye is zero. Injury probability is separate, based on designation priors and recent dated report-language rules.
 
-The public [ESPN injury feed](https://www.espn.com/nfl/injuries) is cached with fetch time and source report time. Matching uses ESPN IDs, never unconfirmed names. Missing/stale reports are flagged. Out, IR, inactive, suspended and bye players have zero modeled availability. The questionable 70%, doubtful 15% and unknown 90% probabilities are explicit policy assumptions, not calibrated medical estimates. Descriptions are evidence; no diagnosis or recovery time is inferred from prose.
+Weekly blending can learn from archived completed forecasts. Shared game/team simulation factors and a matchup win objective are available. Known current points plus clock-scaled remaining production are used when live clock data exist. These intervals and participation estimates remain provisional.
 
-A provisional 65% independent / 35% ESPN weekly blend is used when both are available. If scoring includes components the independent model cannot represent, the engine uses ESPN's already league-scored forecast and labels that fallback. Without either valid forecast, the player is reported missing rather than assigned invented points. Weekly forecast-source weights and intervals still need historical weekly calibration.
-
-Boom means exceeding 150% of the healthy weekly forecast; bust means below 60%. Availability, workload, efficiency and weekly variability affect simulated outcomes. A started player's known current points are frozen, rather than pretending that a complete live-game remainder model exists. Locked starters remain in their current slots; locked bench players cannot be promoted. Re-sync whenever ESPN status changes.
-
-**This does not claim to ingest all football statistics.** Snap/route participation, weather, betting lines, offensive-line changes and detailed practice participation are not available in every forecast and are not silently treated as observed. Weekly probabilities are estimates, not proven championship or game-win probabilities. See each player's coverage warnings.
+See [the full model, source, update and accuracy documentation](INTELLIGENCE.md) for current behavior and limitations. That document supersedes the earlier version 0.2 modeling assumptions.
 
 ## API
 
 - `POST /api/espn/sync`: `{league_id, my_team_id, season, week}` for public leagues.
 - `POST /api/espn/import`: same fields plus `snapshot`, for the authenticated browser bridge or a local export.
-- `POST /api/leagues/ID/lineup`: `{week, risk: "balanced"|"floor"|"upside", refresh_injuries: true}`.
+- `POST /api/leagues/ID/lineup`: `{week, risk: "balanced"|"floor"|"upside"|"win", refresh_injuries: true}`.
 
 All calls require `X-Local-Token`. Runtime database, private league snapshots, caches and tokens are ignored by Git.
