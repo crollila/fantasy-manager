@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Fantasy Manager \u00e2\u20ac\u00a2 ESPN Monitor",
+  "version": "0.2.0",
+  "description": "Read-only ESPN draft observation for your local Fantasy Manager.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "https://lm-api-reads.fantasy.espn.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://fantasy.espn.com/football/*"
+      ],
+      "js": [
+        "parser.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
