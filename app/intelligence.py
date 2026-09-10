@@ -66,6 +66,10 @@ def refresh_intelligence(store,season=None,cache_path=None):
         board=[g for g in board if g.get('game_id')]
         from app.market_data import fetch_markets
         markets,market_status=fetch_markets(board);sources.append(market_status)
+        # Point-in-time forecasting engine (app.nfl): champion ensemble forecasts for upcoming games.
+        from app.nfl.integration import engine_forecasts
+        progress('Refreshing the forecasting engine (nflverse raw store, features, champion forecasts)')
+        engine,engine_status=engine_forecasts([g['game_id'] for g in board if g.get('state')=='pre'],season=season);sources.append(engine_status)
         progress('Fitting opponent strength, weather and replacement-player models')
         stats,historical_games=completed_stats(cache_path,season,as_of)
         model=train_games(schedule,as_of)
@@ -111,6 +115,15 @@ def refresh_intelligence(store,season=None,cache_path=None):
             if game['state']=='pre' and datetime.fromisoformat(game['kickoff'].replace('Z','+00:00'))>datetime.now(timezone.utc):
                 market=markets.get(game['game_id'],{})
                 forecast=game_prediction(model,row|market.get('fields',{}),weather.get(game['game_id']),rosters)
+                if game['game_id'] in engine:
+                    # The engine forecast becomes the published pick; the legacy ridge output is kept for comparison.
+                    legacy={k:forecast.get(k) for k in ('home_score','away_score','home_win_probability','away_win_probability','margin','total','model_version','components')}
+                    forecast=engine[game['game_id']]|{'legacy_forecast':legacy,'weather':forecast.get('weather')}
+                    if market.get('fields'):
+                        fields=market['fields'];line=fields.get('spread_line');market_total=fields.get('total_line')
+                        if line is not None:forecast.update(market_home_margin=line,ats_pick='home' if forecast['margin']>line else 'away' if forecast['margin']<line else 'pass')
+                        if market_total is not None:forecast.update(market_total=market_total,total_pick='over' if forecast['total']>market_total else 'under' if forecast['total']<market_total else 'pass')
+                        forecast.update({k:fields.get(k) for k in ('home_spread_odds','away_spread_odds','over_odds','under_odds','home_moneyline','away_moneyline') if k in fields})
                 if market:forecast.update(market_source=market['source'],market_quotes=market['quotes'],market_fetched_at=market['fetched_at'])
                 forecast.update({k:game[k] for k in ('game_id','espn_id','season','week','kickoff','home_team','away_team','state','source_url')})
                 forecast.update(input_as_of=as_of.isoformat(),injury_source_status=health['status'],base_artifact=base_artifact,margin_sd=model['margin_sd'])

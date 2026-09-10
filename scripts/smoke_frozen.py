@@ -58,6 +58,11 @@ with tempfile.TemporaryDirectory(prefix='fantasy-frozen-') as data:
             audit=api('/intelligence/games/frozen-review-fixture/audit')
             assert audit['forecasts'][0]['home_score']==24 and audit['reviews'][0]['home_score']==17
             assert api('/intelligence/refresh',{})['status']=='complete'
+            # The forecasting engine must ship with its champion and ML libraries inside the frozen backend.
+            health=api('/nfl/health')
+            assert health['champion'], health
+            assert all(not str(v).startswith('unavailable') for v in health['libraries'].values()), health['libraries']
+            assert api('/nfl/model')['model_id']==health['champion']
             advice = api('/leagues/123/lineup', {'week': 1, 'risk': 'balanced'})
             assert advice['starters'][0]['player']['name'] == 'B'
             assert advice['bench'][0]['name'] == 'A'

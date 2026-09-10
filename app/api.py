@@ -513,6 +513,27 @@ def game_audit_export(game_id: str):
             'artifacts':{key:artifact(store,key) for key in ids if key},'note':'Local pregame snapshots and model artifacts. Result revisions do not rewrite forecasts.'}
 
 
+@app.get('/api/nfl/predictions')
+def nfl_predictions():
+    """Latest champion forecasts (market-free and market-aware) with distributions and drivers."""
+    from app.nfl.integration import latest_predictions
+    return latest_predictions() or {'status':'no predictions yet','note':'Run: python -m app.nfl update-and-predict'}
+
+
+@app.get('/api/nfl/health')
+def nfl_health():
+    """Packaged ML library versions and the registered champion."""
+    from app.nfl.integration import engine_health
+    return engine_health()
+
+
+@app.get('/api/nfl/model')
+def nfl_model():
+    """Champion model summary: holdout metrics versus baselines and the market."""
+    from app.nfl.integration import champion_summary
+    return champion_summary() or {'status':'no champion registered','note':'Run: python -m app.nfl backtest && python -m app.nfl train'}
+
+
 class TradeRequest(Strict):
     give:list[str]
     receive:list[str]

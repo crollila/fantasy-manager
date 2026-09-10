@@ -10,7 +10,8 @@ Pop-Location
 if (!(Test-Path '.build-venv/Scripts/python.exe')) { python -m venv .build-venv; Check-Exit }
 & ./.build-venv/Scripts/python.exe -m pip install -r requirements-desktop.txt
 Check-Exit
-& ./.build-venv/Scripts/python.exe -m PyInstaller --noconfirm --clean --onedir --name FantasyBackend --paths . --distpath build/backend --workpath build/pyinstaller --specpath build --add-data "${PWD}/frontend/dist;frontend/dist" --collect-submodules uvicorn --collect-submodules sklearn --collect-submodules scipy._external --exclude-module tkinter --exclude-module matplotlib --exclude-module pytest desktop/backend.py
+if (!(Test-Path 'storage/nfl/models/registry.json')) { throw 'No NFL champion model to bundle: run `python -m app.nfl backtest` and `python -m app.nfl train` first' }
+& ./.build-venv/Scripts/python.exe -m PyInstaller --noconfirm --clean --onedir --name FantasyBackend --paths . --distpath build/backend --workpath build/pyinstaller --specpath build --add-data "${PWD}/frontend/dist;frontend/dist" --add-data "${PWD}/storage/nfl/models;nfl_models" --collect-submodules uvicorn --collect-submodules sklearn --collect-submodules scipy._external --collect-all lightgbm --collect-all xgboost --collect-all polars --collect-all duckdb --exclude-module tkinter --exclude-module matplotlib --exclude-module pytest desktop/backend.py
 Check-Exit
 Push-Location desktop
 npm ci
@@ -20,4 +21,4 @@ Check-Exit
 npm run dist
 Check-Exit
 Pop-Location
-Get-FileHash release/Fantasy-Manager-Setup-0.5.0.exe -Algorithm SHA256
+Get-FileHash release/Fantasy-Manager-Setup-0.6.0.exe -Algorithm SHA256

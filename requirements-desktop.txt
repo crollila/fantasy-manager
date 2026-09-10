@@ -38,3 +38,7 @@ typing-inspection==0.4.4
 typing_extensions==4.16.0
 tzdata==2026.3
 uvicorn==0.52.4
+duckdb==1.5.5
+lightgbm==4.7.0
+polars==1.44.2
+xgboost==3.4.1

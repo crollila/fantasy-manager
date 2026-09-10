@@ -3,7 +3,7 @@
 
 **[Download the Windows app](https://github.com/crollila/fantasy-manager/releases/latest)** · [Installation and ESPN setup](docs/DESKTOP.md)
 
-Version 0.5.0 includes a standalone Windows application and installer. The simpler home screen puts your teams first, with one **Find my best lineup** action and draft/research features under **Advanced tools**. Connect public or private leagues through an isolated ESPN sign-in window; no copying league IDs or cookies is required. Sign-in is performed by you, and ESPN account access is not bundled with the app. The installer includes Python, the analysis engine, and the desktop UI.
+Version 0.6.0 adds the NFL game forecasting engine described below: NFL picks now come from a walk-forward-validated ensemble trained on 27 seasons of play-by-play data, with calibrated win probabilities, score distributions and drivers, and the trained champion ships inside the installer. Version 0.5.0 introduced the standalone Windows application and installer. The simpler home screen puts your teams first, with one **Find my best lineup** action and draft/research features under **Advanced tools**. Connect public or private leagues through an isolated ESPN sign-in window; no copying league IDs or cookies is required. Sign-in is performed by you, and ESPN account access is not bundled with the app. The installer includes Python, the analysis engine, and the desktop UI.
 
 Version 0.4.1 repairs remembered ESPN sign-in and authentication popups, preserves saved teams during temporary failures, and matches the professional theme of exaltedcapital.com.
 
@@ -13,6 +13,44 @@ Your league links, database and encrypted ESPN session remain on your computer. 
 Local-first fantasy football research and decision support: Python/FastAPI, SQLite, cached Parquet, React/TypeScript, and a read-only Chrome Manifest V3 ESPN monitor.
 
 **This is a working, tested local application, not a validated production championship oracle.** The core engines and replay pipeline work. Live ESPN compatibility, authenticated private-league configurations, current market feeds and several advanced modeling requirements still need the inputs and validation listed below. Never interpret simulated championship probabilities as established real-world odds.
+
+## NFL game forecasting engine
+
+`app/nfl/` is a point-in-time NFL game forecasting system built on 27 seasons of public nflverse data (play-by-play, schedules, injuries, snap counts, depth charts, rosters). For every game it produces expected points for both teams, expected margin and total, calibrated win probabilities, Monte Carlo score distributions with intervals, spread/total probabilities and the strongest drivers. Two systems are maintained: a **market-free** champion (football information only) and a **market-aware** companion that also sees the closing line. Accuracy is demonstrated out of sample with season-by-season walk-forward backtests on 2005–2025, including a locked 2022–2025 holdout; see [docs/BACKTEST_REPORT.md](docs/BACKTEST_REPORT.md), [docs/MODEL_CARD.md](docs/MODEL_CARD.md), [docs/ML_SYSTEM.md](docs/ML_SYSTEM.md), [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) and [docs/FEATURES.md](docs/FEATURES.md).
+
+Smallest command sequence (Windows; use `.venv/bin/python` elsewhere):
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m app.nfl update-and-predict
+```
+
+The first run downloads ~550 MB of raw data (once; later runs refresh only changed files), normalizes it, builds features and prints the forecasts for the next NFL week. Full rebuild of the models from scratch (about 40 minutes on a 32-core machine):
+
+```powershell
+.\.venv\Scripts\python.exe -m app.nfl ingest
+.\.venv\Scripts\python.exe -m app.nfl normalize
+.\.venv\Scripts\python.exe -m app.nfl build-features --horizons pregame early
+.\.venv\Scripts\python.exe -m app.nfl leakage
+.\.venv\Scripts\python.exe -m app.nfl backtest
+.\.venv\Scripts\python.exe -m app.nfl ablate
+.\.venv\Scripts\python.exe -m app.nfl train
+.\.venv\Scripts\python.exe -m app.nfl predict
+```
+
+Outputs land in `storage/nfl/predictions/current/` (JSON, Parquet, CSV), the API serves them at `/api/nfl/predictions` and `/api/nfl/model`, and the app's NFL games screen archives the engine forecast in the existing pregame ledger. `python -m app.nfl status` shows data and model state; `python -m app.nfl --help` lists every command.
+
+Locked holdout, 2022–2025 (1,139 games, every game predicted before it was played by a model trained only on earlier seasons):
+
+| System | Margin MAE | Total MAE | Log loss | Brier | Winner accuracy |
+|---|---|---|---|---|---|
+| Naive (league average + home field) | 10.71 | 10.71 | 0.688 | 0.248 | 55.0% |
+| Elo baseline | 9.98 | 10.71 | 0.635 | 0.223 | 64.1% |
+| **Market-free ensemble (champion)** | **9.78** | **10.42** | **0.623** | **0.217** | **66.0%** |
+| Closing line (market) | 9.54 | 10.19 | 0.607 | 0.210 | 67.6% |
+| Market-aware ensemble | 9.54 | 10.20 | 0.607 | 0.210 | 67.0% |
+
+The market-free model beats Elo by 0.20 points of margin MAE (paired weekly bootstrap 95% CI −0.30 to −0.10) and trails the closing line by 0.25 points; the market-aware system matches the market. Win probabilities are calibrated (expected calibration error 0.03; 80% score intervals cover 81.7% of outcomes). No betting edge is claimed.
 
 ## New: postgame reviews and tested learning
 
