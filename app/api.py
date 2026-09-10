@@ -132,7 +132,7 @@ async def lifespan(app):
     intel_task.cancel()
 
 
-app = FastAPI(title="Fantasy Manager",version="0.4.0",lifespan=lifespan)
+app = FastAPI(title="Fantasy Manager",version="0.4.1",lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=["127.0.0.1","localhost","testserver"])
 
 
@@ -162,7 +162,7 @@ async def value_error(request,exc):
 
 @app.get("/api/health")
 def health():
-    return {"app":"fantasy-manager","version":"0.4.0","instance":os.environ.get("FANTASY_INSTANCE","")}
+    return {"app":"fantasy-manager","version":"0.4.1","instance":os.environ.get("FANTASY_INSTANCE","")}
 
 
 @app.get("/api/connections")
@@ -193,7 +193,7 @@ def save_connection(body:ConnectionRequest):
 
 @app.get("/api/bootstrap")
 def bootstrap():
-    return {"token":store.token,"version":"0.4.0","leagues":[l.model_dump() for l in store.leagues()]}
+    return {"token":store.token,"version":"0.4.1","leagues":[l.model_dump() for l in store.leagues()]}
 
 
 @app.get("/api/leagues")

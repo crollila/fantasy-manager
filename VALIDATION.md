@@ -74,3 +74,14 @@ The league-snapshot adapter, atomic imports, correct-week forecast validation, i
 - Held-out 2025 diagnostic: 272 games, 59.41% decisive winner accuracy, available market-favorite accuracy 65.31%, team score MAE 7.72. The different market coverage and actual historical weather/QB inputs are explicitly disclosed. This is not the prospective record or evidence of a market edge.
 - NSIS upgrade returned exit code 0. Installed and packaged versions both reported 0.4.0. Installer SHA-256: `42ee1e577456a3b55237f3bd63cc50050bb51fc1814aac6629f1fe6db40f1473` (197,909,769 bytes). The installer remains unsigned.
 - Authenticated private-league access, licensed market credentials, calibrated participation probabilities and fully causal personnel/weather effects are not established by these tests. See docs/INTELLIGENCE.md for specific coverage limits.
+
+
+## Windows release 0.4.1 — 2026-09-09
+
+- 57 Python tests and eight desktop tests passed. Session regressions cover encrypted restoration, logout deletion, expired-cookie rejection, preservation of newer credentials, no plaintext fallback, strict identity-provider hosts and distinct network/auth/roster failures.
+- Full Electron tests passed in development, the packaged application and the installed application. The test opens a synthetic ESPN page, completes a MyDisney-style popup with its original opener, imports after asynchronous login, quits the app, restarts it, confirms the saved team and session, and imports again without a login window. The real local API validates the synthetic league fixture. These tests isolate both data and browser profiles from the user's account.
+- Theme screenshots were reviewed against the website's white surfaces, charcoal text, Georgia headings and slate links. The packaged/installed game, accuracy, evidence and lineup UI checks passed, as did the frozen executable API smoke check and production TypeScript build.
+- NSIS upgrade returned exit code 0. Installer SHA-256: `9ca28e05b00f70ca6988bf6d2b0af53770f33663a30ec5b154184ea7d1d8054c`. The installer remains unsigned.
+- ESPN may still expire/revoke server sessions or require a security challenge. This update cannot recover credentials already discarded by an older release; one new sign-in may be needed. It fixes app-owned persistence, popup handling, delayed imports and misleading reconnect errors, without claiming that fixture tests prove every real identity-provider outcome.
+
+- A separate installed-app check reused the user’s existing ESPN session, retained all three saved team cards and refreshed two leagues. The remaining league returned HTTP 404 (`league_unavailable`), correctly distinguished from expired authentication. No login credentials were printed or included in test artifacts.

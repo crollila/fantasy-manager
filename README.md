@@ -3,9 +3,11 @@
 
 **[Download the Windows app](https://github.com/crollila/fantasy-manager/releases/latest)** · [Installation and ESPN setup](docs/DESKTOP.md)
 
-Version 0.4 includes a standalone Windows application and installer. The simpler home screen puts your teams first, with one **Find my best lineup** action and draft/research features under **Advanced tools**. Connect public or private leagues through an isolated ESPN sign-in window; no copying league IDs or cookies is required. Sign-in is performed by you, and ESPN account access is not bundled with the app. The installer includes Python, the analysis engine, and the desktop UI.
+Version 0.4.1 includes a standalone Windows application and installer. The simpler home screen puts your teams first, with one **Find my best lineup** action and draft/research features under **Advanced tools**. Connect public or private leagues through an isolated ESPN sign-in window; no copying league IDs or cookies is required. Sign-in is performed by you, and ESPN account access is not bundled with the app. The installer includes Python, the analysis engine, and the desktop UI.
 
-Your league links, database and ESPN session remain on your computer. The public repository and downloads contain application code only. The current installer is unsigned. See the desktop guide for data locations, offline operation, authentication limitations and reproducible builds.
+Version 0.4.1 repairs remembered ESPN sign-in and authentication popups, preserves saved teams during temporary failures, and matches the professional theme of exaltedcapital.com.
+
+Your league links, database and encrypted ESPN session remain on your computer. The public repository and downloads contain application code only. The current installer is unsigned. See the desktop guide for data locations, offline operation, authentication limitations and reproducible builds.
 
 
 Local-first fantasy football research and decision support: Python/FastAPI, SQLite, cached Parquet, React/TypeScript, and a read-only Chrome Manifest V3 ESPN monitor.

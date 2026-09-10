@@ -7,13 +7,13 @@ const instance=await electron.launch({executablePath:installed||path.join(root,'
 try{
  const page=await instance.firstWindow({timeout:90000});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.getByRole('heading',{name:'Make the right starts.'}).waitFor();
+ await page.getByRole('heading',{name:'Your weekly lineup'}).waitFor();
  const base=new URL(page.url()).origin;
  const b=await (await fetch(base+'/api/bootstrap')).json();
- if(b.version!=='0.4.0')throw new Error('Wrong frozen backend version');
+ if(b.version!=='0.4.1')throw new Error('Wrong frozen backend version');
  await page.getByRole('button',{name:'Connect my first team'}).waitFor();
- await page.getByRole('button',{name:'+ Connect ESPN',exact:true}).click();
- await page.getByRole('button',{name:'Open ESPN & sign in'}).waitFor();
+ await page.getByRole('button',{name:'Manage ESPN',exact:true}).click();
+ await page.getByRole('button',{name:'Open ESPN'}).waitFor();
  if(!await page.evaluate(()=>typeof window.fantasyDesktop?.connect==='function'))throw new Error('Desktop preload unavailable');
  await page.screenshot({path:path.join(root,'storage','desktop-home.png'),fullPage:true});
  const rate={wins:0,losses:0,pushes_or_ties:0,win_rate:null,decisions:0,ci95:null};

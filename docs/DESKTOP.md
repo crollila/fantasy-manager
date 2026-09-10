@@ -1,21 +1,27 @@
 # Windows application
 
-Download **Fantasy-Manager-Setup-0.4.0.exe** from [GitHub Releases](https://github.com/crollila/fantasy-manager/releases/latest). Run the installer, choose an installation folder, then open **Fantasy Manager** from Start or the desktop shortcut. Windows 10/11 x64 is the target. Python, Node, Chrome and developer tools are not prerequisites.
+Download **Fantasy-Manager-Setup-0.4.1.exe** from [GitHub Releases](https://github.com/crollila/fantasy-manager/releases/latest). Run the installer, choose an installation folder, then open **Fantasy Manager** from Start or the desktop shortcut. Windows 10/11 x64 is the target. Python, Node, Chrome and developer tools are not prerequisites.
 
 The installer is currently unsigned; Windows may identify its publisher as unknown. There is no automatic updater. Install a newer release over the existing application to update it. Uninstalling preserves your analysis data.
 
 ## Connect ESPN
 
-1. Choose **Connect ESPN → Open ESPN & sign in**.
+1. Choose **Manage ESPN → Open ESPN**.
 2. Sign in yourself in the separate ESPN window. Open your team from ESPN’s Fantasy menu.
-3. The app imports a recognized My Team page automatically. If ESPN’s page updates without completing a new navigation, choose **Import this team** in that window’s menu.
+3. The app imports a recognized My Team page automatically. If ESPN’s page updates without completing a new navigation, choose **Retry import** in that window’s menu.
 4. Repeat for other teams. The ESPN session is shared between connection windows, so another sign-in usually is not necessary.
 
-You can also paste a complete ESPN **My Team** URL. Public leagues work in the browser version. Private leagues require the desktop ESPN session or the optional Chrome extension. ESPN may change its API or reject embedded-browser authentication; if that happens, use the existing Chrome extension with the browser version described in the main README. The app does not retrieve a Chrome profile or transfer its cookies.
+You can also paste a complete ESPN **My Team** URL. Public leagues work in the browser version. Private leagues require the desktop ESPN session or the optional Chrome extension. ESPN may change its API or reject embedded-browser authentication; if that happens, use the existing Chrome extension with the browser version described in the main README. The app does not retrieve a Chrome profile or transfer its cookies. ESPN sign-in is restored from its own persistent desktop profile. The two ESPN authentication cookies are also saved with Windows DPAPI encryption to preserve session-only sign-in across restarts (up to 30 days, respecting provider expiration). Logout removes the saved copy. Passwords are never collected. ESPN can still expire or revoke a session.
 
 Choose a team, week and objective, then **Find my best lineup**. The app refreshes the roster and checks injury reports before analysis. To analyze a cached roster while offline, turn off **Refresh ESPN roster first**. The result displays the roster and injury source timestamps; changing the week or objective clears the previous result. Empty rosters and missing forecasts cannot produce a lineup.
 
 The app recommends changes; it does not submit starters, trades, waiver claims or draft picks to ESPN. Historical usage and ESPN forecasts are available inputs, not a claim that every possible statistic is covered. See [weekly model details](WEEKLY_LINEUPS.md).
+
+## Reopening and connection recovery
+
+Saved teams appear immediately, even if ESPN is temporarily unavailable. **Refresh teams** checks their current rosters. Only an explicit authentication failure prompts reconnection; rate limits, network failures and roster errors retain their own messages. Existing team data is preserved.
+
+Version 0.4.1 fixes login popups so MyDisney can return to ESPN and retries league import after login completes without a full page reload. Its app and browser-session directories stay stable across upgrades; developer tests use a separate profile. If an older session was already lost, reconnect once in **Manage ESPN**.
 
 ## Predictions and automatic refresh
 
@@ -40,6 +46,7 @@ From Windows PowerShell in the project root, with Python 3.12 and Node 22+ insta
 npm --prefix desktop test
 cd frontend
 node desktop-e2e.mjs
+node espn-restart-e2e.mjs
 ```
 
 Python dependencies for the Windows build are pinned in `requirements-desktop.txt`. The build creates a clean `.build-venv`, freezes the engine with PyInstaller, bundles the UI and runtime using Electron, and produces a per-user NSIS installer in `release/`. `frontend/desktop-e2e.mjs` tests the packaged app with isolated local data; its lineup rendering response is an explicitly synthetic fixture. `scripts/smoke_frozen.py` exercises actual frozen API import, injury exclusions and lineup optimization.

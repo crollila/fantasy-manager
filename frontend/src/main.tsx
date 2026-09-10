@@ -56,3 +56,5 @@ function App(){
 function Result({value}:{value:unknown}){return <section className="card"><div className="toolbar"><h3>Analysis result</h3><button onClick={()=>download('fantasy-analysis.json',value)}>Export JSON</button></div><pre>{JSON.stringify(value,null,2)}</pre></section>;}
 function Root(){const [advanced,setAdvanced]=useState(false);return advanced?<><button className="back-home" onClick={()=>setAdvanced(false)}>← Back to my teams</button><App/></>:<Home api={api} onAdvanced={()=>setAdvanced(true)}/>;}
 createRoot(document.getElementById('root')!).render(<Root/>);
+
+import './professional.css';
