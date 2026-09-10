@@ -1,6 +1,6 @@
 # Windows application
 
-Download **Fantasy-Manager-Setup-0.4.1.exe** from [GitHub Releases](https://github.com/crollila/fantasy-manager/releases/latest). Run the installer, choose an installation folder, then open **Fantasy Manager** from Start or the desktop shortcut. Windows 10/11 x64 is the target. Python, Node, Chrome and developer tools are not prerequisites.
+Download **Fantasy-Manager-Setup-0.5.0.exe** from [GitHub Releases](https://github.com/crollila/fantasy-manager/releases/latest). Run the installer, choose an installation folder, then open **Fantasy Manager** from Start or the desktop shortcut. Windows 10/11 x64 is the target. Python, Node, Chrome and developer tools are not prerequisites.
 
 The installer is currently unsigned; Windows may identify its publisher as unknown. There is no automatic updater. Install a newer release over the existing application to update it. Uninstalling preserves your analysis data.
 
@@ -25,7 +25,9 @@ Version 0.4.1 fixes login popups so MyDisney can return to ESPN and retries leag
 
 ## Predictions and automatic refresh
 
-Open **NFL games** for score and winner predictions, **Accuracy** for the prospective record, and **Data & evidence** for model coverage. Opening the app refreshes public inputs and grades completed games; public intelligence repeats every 15 minutes while running. Connected teams refresh after the opening/manual refresh when ESPN authentication remains valid. See [model and update details](INTELLIGENCE.md).
+Open **NFL games** for score and winner predictions, **Accuracy** for the prospective record and postgame reviews, **Learning** for tested model changes, and **Data & evidence** for model coverage. Opening the app refreshes public inputs and grades completed games; public intelligence repeats every 15 minutes while running. Connected teams refresh after the opening/manual refresh when ESPN authentication remains valid. See [model and update details](INTELLIGENCE.md).
+
+See [postgame review and learning rules](GAME_LEARNING.md) for saved statistical expectations, correction tests, imports and audit exports.
 
 ## Local data
 

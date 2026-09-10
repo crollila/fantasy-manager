@@ -33,6 +33,8 @@ def refresh_inputs(season, cache_path=DATA/'cache'):
     # Play-by-play adds red-zone usage, pace, neutral pass rate and expected-points metrics.
     for year in range(season-2, season+1):
         specs.append((f'pbp_{year}.parquet', f'{BASE}/pbp/play_by_play_{year}.parquet', 3600 if year==season else 86400))
+    for kind in ('passing', 'rushing', 'receiving'):
+        specs.append((f'ngs_{kind}.parquet', f'{BASE}/nextgen_stats/ngs_{kind}.parquet', 21600))
     def download(spec):
         name, url, ttl = spec
         try:

@@ -1,6 +1,8 @@
-# Weekly intelligence and game picks — version 0.4
+# Weekly intelligence and game picks — version 0.5
 
-The home screen has **My teams**, **NFL games**, **Accuracy**, and **Data & evidence**. Predictions are estimates. The live record starts with forecasts actually saved before kickoff; historical diagnostics never become live wins.
+The home screen has **My teams**, **NFL games**, **Accuracy**, **Learning**, and **Data & evidence**. Predictions are estimates. The live record starts with forecasts actually saved before kickoff; historical diagnostics never become live wins.
+
+For the new statistical reviews, prospective correction tests, data imports and audit exports, read [Game reviews and learning](GAME_LEARNING.md).
 
 ## How player projections work
 
@@ -42,6 +44,7 @@ Source caching limits redundant downloads:
 | Current-season player/team weekly statistics | 30 minutes |
 | Current-season snaps / play-by-play | 1 hour |
 | Historical statistics | 24 hours |
+| Next Gen Stats passing/rushing/receiving | 6 hours |
 | Historical depth charts / current rosters | 6 hours |
 
 These are polling intervals, not promises about provider publication latency. Statistics may arrive after games. Missing current-season files before Week 1 are normal. The evidence screen displays retrieval times and availability; stale forecasts remain accessible when refresh fails. Forecast weather uses approximate city coordinates and a finite forecast horizon. Missing weather has neutral inputs, not invented conditions.

@@ -2,7 +2,7 @@
 import hashlib
 import json
 import math
-from datetime import datetime,timezone
+from datetime import datetime,timezone,timedelta
 import numpy as np
 from app.storage import now
 
@@ -15,6 +15,8 @@ def initialize(store):
         CREATE TABLE IF NOT EXISTS game_results(game_id TEXT PRIMARY KEY,body TEXT NOT NULL,updated_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS player_forecasts(id INTEGER PRIMARY KEY AUTOINCREMENT,league_id TEXT NOT NULL,player_id TEXT NOT NULL,game_id TEXT NOT NULL,created_at TEXT NOT NULL,kickoff TEXT NOT NULL,body TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS player_results(forecast_id INTEGER PRIMARY KEY,body TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS game_observations(game_id TEXT NOT NULL,team TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(game_id,team));
+        CREATE TABLE IF NOT EXISTS game_result_versions(id INTEGER PRIMARY KEY AUTOINCREMENT,game_id TEXT NOT NULL,forecast_id INTEGER NOT NULL,created_at TEXT NOT NULL,body TEXT NOT NULL,fingerprint TEXT NOT NULL,UNIQUE(game_id,forecast_id,fingerprint));
         ''')
 
 
@@ -62,15 +64,26 @@ def settle_games(store,games,team_actuals=None):
             if odds and result.get(field) in ('W','L','P'):
                 result['paper_profit'][category]=0. if result[field]=='P' else -1. if result[field]=='L' else 100/abs(odds) if odds<0 else odds/100
 
-        deviations=[]
-        for side,score in [('home',h),('away',a)]:
-            team=game[side+'_team'];error=score-forecast[side+'_score']
-            deviations.append(f'{team} scored {score:g} versus {forecast[side+"_score"]:.1f} projected ({error:+.1f}).')
-            observed=team_actuals.get((game['game_id'],team),{})
-            for key,label in [('passing_interceptions','interceptions thrown'),('sacks_suffered','sacks allowed'),('fumbles_lost_total','fumbles lost')]:
-                if key in observed:deviations.append(f'{team}: {observed[key]:g} {label}.')
-        result['review']={'observed_differences':deviations,'pre_game_factors':forecast.get('reasons',[]),'interpretation':'These are measured differences and pregame assumptions, not proof of causation. A missed pick alone does not establish a bad model.'}
-        with store.connect() as c:c.execute('INSERT OR REPLACE INTO game_results VALUES(?,?,?)',(game['game_id'],json.dumps(result,allow_nan=False),now()))
+        from app.game_evidence import review_game,normalize
+        merged={}
+        with store.connect() as c:
+            for side in ('home','away'):
+                team=normalize(game[side+'_team']);key=(game['game_id'],team)
+                old=c.execute('SELECT body FROM game_observations WHERE game_id=? AND team=?',key).fetchone()
+                item=json.loads(old[0]) if old else {}
+                for field in ('metrics','sources','players','weather'):
+                    item[field]=item.get(field,{})|team_actuals.get(key,{}).get(field,{})
+                merged[key]=item
+                c.execute('INSERT OR REPLACE INTO game_observations VALUES(?,?,?)',(*key,json.dumps(item,allow_nan=False)))
+        result['review']=review_game(forecast,game,merged)
+        result['base_artifact']=forecast.get('base_artifact')
+        result['learning_artifact']=forecast.get('learning',{}).get('active_artifact')
+        result['learning_eligible_after']=(date(forecast['kickoff'])+timedelta(days=4)).isoformat()
+        body=json.dumps(result,sort_keys=True,allow_nan=False);fingerprint=hashlib.sha256(body.encode()).hexdigest()
+        with store.connect() as c:
+            c.execute('INSERT OR IGNORE INTO game_result_versions(game_id,forecast_id,created_at,body,fingerprint) VALUES(?,?,?,?,?)',(game['game_id'],forecast['forecast_id'],now(),body,fingerprint))
+            result['review_revisions']=c.execute('SELECT COUNT(*) FROM game_result_versions WHERE game_id=?',(game['game_id'],)).fetchone()[0]
+            c.execute('INSERT OR REPLACE INTO game_results VALUES(?,?,?)',(game['game_id'],json.dumps(result,allow_nan=False),now()))
 
 
 def rates(rows,field):

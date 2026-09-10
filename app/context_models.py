@@ -1,5 +1,6 @@
 """Opponent-adjusted fantasy production and learned weather/play-calling effects."""
 import math
+from datetime import timedelta
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -10,7 +11,7 @@ from app.domain import DEFAULT_SCORING
 
 def completed_stats(cache_path, season, as_of):
     schedule=enrich_weather(read_frame(Path(cache_path)/'schedules.parquet'),cache_path,season)
-    known={r['game_id']:r for r in schedule.to_dict('records') if kickoff(r) and kickoff(r)<as_of and pd.notna(r.get('home_score')) and pd.notna(r.get('away_score')) and r.get('game_type')=='REG'}
+    known={r['game_id']:r for r in schedule.to_dict('records') if kickoff(r) and kickoff(r)+timedelta(hours=8)<as_of and pd.notna(r.get('home_score')) and pd.notna(r.get('away_score')) and r.get('game_type')=='REG'}
     frames=[]
     for year in range(season-3,season+1):
         frame=read_frame(Path(cache_path)/f'stats_{year}.parquet')

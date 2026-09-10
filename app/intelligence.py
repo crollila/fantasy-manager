@@ -12,6 +12,8 @@ from app.context_models import completed_stats,fit_matchups,play_calling,enrich_
 from app.roster_context import replacement_study,current_rosters
 from app.injuries import injury_report
 from app.tracking import initialize,saved_games,save_game,settle_games,settle_players,dashboard
+from app.game_evidence import observations,fit_expectations,expectations
+from app.game_learning import update_learning,apply_learning,archive_artifact,artifact,diagnostics,dashboard as learning_dashboard
 
 _lock=threading.Lock()
 
@@ -33,7 +35,12 @@ def current_week(schedule,season,as_of):
 
 def state(store):
     report=get_meta(store,'intelligence-report',{})
-    return report|{'refresh':get_meta(store,'intelligence-status',{'state':'not_started'}),'accuracy':dashboard(store)}
+    accuracy=dashboard(store)
+    # Diagnostics use the full ledger, not just the 300 recent rows shown in the UI.
+    with store.connect() as c:results=[json.loads(r[0]) for r in c.execute('SELECT body FROM game_results')]
+    from app.game_benchmarks import comparison
+    forecasts=saved_games(store)
+    return report|{'refresh':get_meta(store,'intelligence-status',{'state':'not_started'}),'accuracy':accuracy,'learning':learning_dashboard(store),'diagnostics':diagnostics(forecasts,results),'external_comparisons':comparison(forecasts,results)}
 
 
 def refresh_intelligence(store,season=None,cache_path=None):
@@ -75,6 +82,26 @@ def refresh_intelligence(store,season=None,cache_path=None):
         calling=play_calling(cache_path,season,as_of,historical_games)
         study=replacement_study(cache_path,season,historical_games,stats)
         rosters=current_rosters(depth,health,study,stats,cache_path,as_of,season)
+        progress('Reviewing completed picks against team, player and Next Gen Stats evidence')
+        # Revisit the weeks in which actual archived forecasts exist, including past seasons.
+        previous=saved_games(store);periods={(f['season'],f['week']) for f in previous.values() if datetime.fromisoformat(f['kickoff'].replace('Z','+00:00'))<=datetime.now(timezone.utc)}
+        settle_board=list(board)
+        for year,past_week in sorted(periods):
+            if (year,past_week)==(season,week):continue
+            try:
+                for g in scoreboard(year,past_week,cache_path):
+                    known=next((f for f in previous.values() if f.get('espn_id')==g['espn_id']),None)
+                    if known:settle_board.append(g|{'game_id':known['game_id']})
+            except Exception:pass
+        actuals=observations(cache_path,schedule,season)
+        settle_games(store,settle_board,actuals)
+        settle_players(store,stats,store.players(season),{g['game_id'] for g in settle_board if g.get('completed')})
+        progress('Testing learned corrections and fitting statistical expectations')
+        learning=update_learning(store)
+        process=fit_expectations(actuals,schedule,as_of)
+        # Artifacts preserve coefficients and source hashes without copying personal league data.
+        base_artifact=archive_artifact(store,'foundation',{'model':model,'process':process,'sources':sources},as_of)
+        active=artifact(store,learning.get('active'));pending=artifact(store,learning.get('pending'))
         progress('Fetching kickoff weather and saving pregame picks')
         with ThreadPoolExecutor(max_workers=3) as pool:weather=dict(zip([g['game_id'] for g in board],pool.map(lambda g:weather_for(g,cache_path),board)))
         forecasts=saved_games(store);games=[]
@@ -86,27 +113,15 @@ def refresh_intelligence(store,season=None,cache_path=None):
                 forecast=game_prediction(model,row|market.get('fields',{}),weather.get(game['game_id']),rosters)
                 if market:forecast.update(market_source=market['source'],market_quotes=market['quotes'],market_fetched_at=market['fetched_at'])
                 forecast.update({k:game[k] for k in ('game_id','espn_id','season','week','kickoff','home_team','away_team','state','source_url')})
-                forecast['input_as_of']=as_of.isoformat();forecast['injury_source_status']=health['status']
+                forecast.update(input_as_of=as_of.isoformat(),injury_source_status=health['status'],base_artifact=base_artifact,margin_sd=model['margin_sd'])
+                forecast['process_expectations']=expectations(process,row,weather.get(game['game_id']),rosters)
+                forecast['personnel_snapshot']={side:rosters.get(game[side+'_team'],{}).get('availability',[]) for side in ('home','away')}
+                from app.game_benchmarks import for_game
+                forecast['external_benchmarks']=for_game(store,game)
+                forecast=apply_learning(forecast,learning,active,pending)
                 save_game(store,forecast)
-            games.append(game|{'forecast':forecast,'weather':weather.get(game['game_id'],{})})
-        progress('Grading completed picks and updating accuracy')
-        # Revisit the weeks in which actual archived forecasts exist, including past seasons.
-        previous=saved_games(store);periods={(f['season'],f['week']) for f in previous.values() if datetime.fromisoformat(f['kickoff'].replace('Z','+00:00'))<=datetime.now(timezone.utc)}
-        settle_board=list(board)
-        for year,past_week in sorted(periods):
-            if (year,past_week)==(season,week):continue
-            try:
-                for g in scoreboard(year,past_week,cache_path):
-                    known=next((f for f in previous.values() if f.get('espn_id')==g['espn_id']),None)
-                    if known:settle_board.append(g|{'game_id':known['game_id']})
-            except Exception:pass
-        actuals={}
-        for year in {g['season'] for g in settle_board}:
-            frame=read_frame(cache_path/f'team_stats_{year}.parquet')
-            for r in frame.to_dict('records'):actuals[(r['game_id'],r['team'])]={k:number(r.get(k)) for k in ('passing_interceptions','sacks_suffered','fumbles_lost_total')}
-        settle_games(store,settle_board,actuals)
-        settle_players(store,stats,store.players(season),{g['game_id'] for g in settle_board if g.get('completed')})
-        report={'season':season,'week':week,'updated_at':now(),'games':games,'sources':sources,'model':model,'matchups':matchups,'league_matchups':league_models,'play_calling':calling,'replacement_study':study,'rosters':rosters,'injury_status':health['status'],'coverage_notes':['Participation probabilities are separate from points-if-active.','Weather uses city-level forecast coordinates; missing weather receives neutral inputs.','Historical roster effects are observational and shrink toward zero.','Live route participation and licensed player-prop data are not bundled; unavailable inputs are explicitly missing.','Market schedule lines are a benchmark; no claim of beating closing lines.']}
+            games.append(game|{'forecast':forecast,'weather':(forecast or {}).get('weather',weather.get(game['game_id'],{}))})
+        report={'season':season,'week':week,'updated_at':now(),'games':games,'sources':sources,'model':model,'matchups':matchups,'league_matchups':league_models,'play_calling':calling,'replacement_study':study,'rosters':rosters,'injury_status':health['status'],'process_model':{'metrics':list(process['models']),'method':process['method'],'range_note':process['range_note']},'coverage_notes':['Participation probabilities are separate from points-if-active.','Weather uses city-level forecast coordinates; missing weather receives neutral inputs.','Historical roster effects are observational and shrink toward zero.','Statistical expectations use joint offense/opponent strength; Next Gen Stats cover qualifying players, not every snap.','Current-season play-by-play and player/team stats usually arrive after game days; later corrections update reviews without rewriting picks.','Live route participation and licensed player-prop data are not bundled; unavailable inputs are explicitly missing.','Market schedule lines are a benchmark; no claim of beating closing lines.','Learning tests frozen corrections on future games; insufficient evidence leaves the current scoring model in place.']}
         set_meta(store,'intelligence-report',report)
         set_meta(store,'intelligence-status',{'state':'complete','updated_at':now(),'stage':'Forecasts and results updated'})
         return {'season':season,'week':week,'games':len(games),'updated_at':report['updated_at']}

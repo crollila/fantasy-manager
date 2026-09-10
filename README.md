@@ -3,7 +3,7 @@
 
 **[Download the Windows app](https://github.com/crollila/fantasy-manager/releases/latest)** · [Installation and ESPN setup](docs/DESKTOP.md)
 
-Version 0.4.1 includes a standalone Windows application and installer. The simpler home screen puts your teams first, with one **Find my best lineup** action and draft/research features under **Advanced tools**. Connect public or private leagues through an isolated ESPN sign-in window; no copying league IDs or cookies is required. Sign-in is performed by you, and ESPN account access is not bundled with the app. The installer includes Python, the analysis engine, and the desktop UI.
+Version 0.5.0 includes a standalone Windows application and installer. The simpler home screen puts your teams first, with one **Find my best lineup** action and draft/research features under **Advanced tools**. Connect public or private leagues through an isolated ESPN sign-in window; no copying league IDs or cookies is required. Sign-in is performed by you, and ESPN account access is not bundled with the app. The installer includes Python, the analysis engine, and the desktop UI.
 
 Version 0.4.1 repairs remembered ESPN sign-in and authentication popups, preserves saved teams during temporary failures, and matches the professional theme of exaltedcapital.com.
 
@@ -14,9 +14,17 @@ Local-first fantasy football research and decision support: Python/FastAPI, SQLi
 
 **This is a working, tested local application, not a validated production championship oracle.** The core engines and replay pipeline work. Live ESPN compatibility, authenticated private-league configurations, current market feeds and several advanced modeling requirements still need the inputs and validation listed below. Never interpret simulated championship probabilities as established real-world odds.
 
+## New: postgame reviews and tested learning
+
+Version 0.5.0 adds **Accuracy → Review** and a **Learning** tab. Every new pregame pick saves expectations for up to 14 statistics, including turnovers, passing/rushing production, play efficiency and qualifying-player Next Gen Stats. Final results show what matched, what missed, missing evidence and injury/participation assumptions. Statistic corrections update a versioned review without rewriting the original pick.
+
+The foundation refits completed history on refresh. A separate correction layer trains on at least 80 eligible archived games, then shadows at least 32 future games across three weeks. A correction can affect published picks only after a paired accuracy test passes; later tests can roll it back. The app also adds same-game market score/probability comparisons, local licensed forecast imports and full prediction-record exports. There is no claimed edge over Vegas and no guarantee that a candidate will improve accuracy.
+
+Read [the review, data and learning rules](docs/GAME_LEARNING.md). Existing ESPN sign-in, leagues and prediction history are preserved by the upgrade.
+
 ## New: weekly context, NFL picks and automatic tracking
 
-The home screen now includes **NFL games**, **Accuracy**, and **Data & evidence**. Weekly projections incorporate opponent-adjusted positional defense, home/away, weather and historical personnel effects. Injury participation probability is separate from full points-if-active. Game winner/score/spread/total picks are archived before kickoff and graded automatically; forecast errors and available postgame evidence remain visible. Refresh runs on app open and every 15 minutes while running.
+The home screen now includes **NFL games**, **Accuracy**, **Learning**, and **Data & evidence**. Weekly projections incorporate opponent-adjusted positional defense, home/away, weather and historical personnel effects. Injury participation probability is separate from full points-if-active. Game winner/score/spread/total picks are archived before kickoff and graded automatically; forecast errors and available postgame evidence remain visible. Refresh runs on app open and every 15 minutes while running.
 
 Read [how the models, data, updates and accuracy tracking work](docs/INTELLIGENCE.md). The model has no demonstrated advantage over market lines; live records are never backfilled from historical results.
 
@@ -24,7 +32,7 @@ Read [how the models, data, updates and accuracy tracking work](docs/INTELLIGENC
 
 Open **My lineup** to sync an ESPN league and compare recommended starters with your current lineup. Public leagues sync directly; private leagues use the desktop ESPN sign-in window or the Chrome extension while you are logged in. Per-player cards show weekly projections, floor/ceiling, boom/bust estimates, injury status, availability assumptions and source freshness. Byes, IR/out players, ESPN slot eligibility and known game locks are respected.
 
-See [weekly setup and modeling details](docs/WEEKLY_LINEUPS.md). Actual private-league access requires your league IDs/profile; it has not been verified against your personal leagues yet. The model reports missing data and does not claim to ingest every football statistic.
+See [weekly setup and modeling details](docs/WEEKLY_LINEUPS.md). Private-league access uses your own ESPN sign-in and profile; account data are never bundled with the release. The model reports missing data and does not claim to ingest every football statistic.
 
 ## Start on Windows
 

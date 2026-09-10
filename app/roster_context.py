@@ -109,13 +109,16 @@ def current_rosters(depth,health,study,stats,cache_path,as_of=None,season=None):
             averages[str(pid)]={k:float(frame[k].fillna(0).mean()) for k in ('targets','carries','attempts') if k in frame}
     result={}
     for team,data in depth.items():
-        r={'changes':[],'notes':[],'offense_points_delta':0.,'defense_points_delta':0.,'opportunities':{},'source_url':data.get('source_url')};seen=set()
+        r={'changes':[],'notes':[],'availability':[],'offense_points_delta':0.,'defense_points_delta':0.,'opportunities':{},'source_url':data.get('source_url')};seen=set()
         for unit in data.get('units',[]):
             position=group_position(unit['position']);players=unit['players']
             if not players or position=='OTHER':continue
             first=players[0]
             if first['espn_id'] in seen:continue
             seen.add(first['espn_id'])
+            first_report=health.get('players',{}).get(first['espn_id'],{})
+            first_participation=participation(first_report.get('status','UNKNOWN'),first_report,as_of)
+            r['availability'].append({'espn_id':first['espn_id'],'name':first['name'],'position':position,'status':first_report.get('status','UNKNOWN'),'probability':first_participation['probability'],'likely':first_participation['likely'],'reported_at':first_report.get('reported_at'),'source_url':first_report.get('source_url') or data.get('source_url')})
             def likely(p):
                 report=health.get('players',{}).get(p['espn_id'],{})
                 return participation(report.get('status','UNKNOWN'),report,as_of)['likely']

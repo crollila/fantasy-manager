@@ -132,7 +132,7 @@ async def lifespan(app):
     intel_task.cancel()
 
 
-app = FastAPI(title="Fantasy Manager",version="0.4.1",lifespan=lifespan)
+app = FastAPI(title="Fantasy Manager",version="0.5.0",lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=["127.0.0.1","localhost","testserver"])
 
 
@@ -162,7 +162,7 @@ async def value_error(request,exc):
 
 @app.get("/api/health")
 def health():
-    return {"app":"fantasy-manager","version":"0.4.1","instance":os.environ.get("FANTASY_INSTANCE","")}
+    return {"app":"fantasy-manager","version":"0.5.0","instance":os.environ.get("FANTASY_INSTANCE","")}
 
 
 @app.get("/api/connections")
@@ -193,7 +193,7 @@ def save_connection(body:ConnectionRequest):
 
 @app.get("/api/bootstrap")
 def bootstrap():
-    return {"token":store.token,"version":"0.4.1","leagues":[l.model_dump() for l in store.leagues()]}
+    return {"token":store.token,"version":"0.5.0","leagues":[l.model_dump() for l in store.leagues()]}
 
 
 @app.get("/api/leagues")
@@ -484,6 +484,33 @@ def intelligence_refresh():
     with job_lock:
         running=next((j.copy() for j in jobs.values() if j['kind']=='intelligence' and j['status'] in ('queued','running')),None)
     return running or submit('intelligence',lambda:refresh_intelligence(store))
+
+
+from app.game_benchmarks import BenchmarkImport
+
+
+@app.post('/api/intelligence/benchmarks')
+def game_benchmark_import(body: BenchmarkImport):
+    from app.game_benchmarks import import_benchmarks
+    from app.intelligence import get_meta
+    return import_benchmarks(store,body,get_meta(store,'intelligence-report',{}).get('games',[]))
+
+
+@app.get('/api/intelligence/games/{game_id}/audit')
+def game_audit_export(game_id: str):
+    from app.game_learning import initialize,artifact
+    initialize(store)
+    with store.connect() as c:
+        rows=c.execute('SELECT id,body,created_at FROM game_forecasts WHERE game_id=? ORDER BY id',(game_id,)).fetchall()
+        reviews=c.execute('SELECT body,created_at FROM game_result_versions WHERE game_id=? ORDER BY id',(game_id,)).fetchall()
+    if not rows:raise HTTPException(404,'No archived forecast for this game')
+    forecasts=[json.loads(r['body'])|{'forecast_id':r['id'],'saved_at':r['created_at']} for r in rows]
+    ids={f.get('base_artifact') for f in forecasts}
+    for f in forecasts:
+        ids.add(f.get('learning',{}).get('active_artifact'))
+        ids.add((f.get('learning',{}).get('candidate') or {}).get('artifact'))
+    return {'game_id':game_id,'forecasts':forecasts,'reviews':[json.loads(r['body'])|{'reviewed_at':r['created_at']} for r in reviews],
+            'artifacts':{key:artifact(store,key) for key in ids if key},'note':'Local pregame snapshots and model artifacts. Result revisions do not rewrite forecasts.'}
 
 
 class TradeRequest(Strict):

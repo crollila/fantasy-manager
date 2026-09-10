@@ -1,13 +1,13 @@
 """Independent, regularized team scoring model. Market lines are benchmarks, never labels."""
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import numpy as np
 import pandas as pd
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import Ridge
 from scipy.stats import norm
 
-MODEL_VERSION = '0.4.0-context-1'
+MODEL_VERSION = '0.5.0-evidence-1'
 
 
 def number(value, default=0.):
@@ -65,7 +65,9 @@ def train_games(schedule, as_of):
     rows=[];xs=[];ys=[];weights=[]
     for row in schedule.to_dict('records'):
         date=kickoff(row)
-        if not date or date>=as_of or (as_of-date).days>4*366 or pd.isna(row.get('home_score')) or pd.isna(row.get('away_score')) or row.get('game_type')!='REG':continue
+        # The schedule has no reliable live/final flag. Exclude the game window so
+        # a partially populated live score cannot become a completed training label.
+        if not date or date+timedelta(hours=8)>=as_of or (as_of-date).days>4*366 or pd.isna(row.get('home_score')) or pd.isna(row.get('away_score')) or row.get('game_type')!='REG':continue
         rows.append(row)
         for side in ('home','away'):
             xs.append(features(row,side));ys.append(number(row[side+'_score']));weights.append(.5**((as_of-date).days/365))
@@ -104,7 +106,7 @@ def game_prediction(model,row,weather=None,roster=None):
         defense_change=number(roster.get(other,{}).get('defense_points_delta'))
         points[side]=max(0.,min(60.,raw+offense_change+defense_change))
         contributions={k:round(model['coefficients'].get(k,0)*v,3) for k,v in x.items() if k in model['coefficients']}
-        components[side]={'baseline':model['intercept'],'factors':contributions,'offensive_replacements':offense_change,'opposing_defensive_replacements':defense_change,'raw_points':raw}
+        components[side]={'baseline':model['intercept'],'factors':contributions,'inputs':x,'offensive_replacements':offense_change,'opposing_defensive_replacements':defense_change,'raw_points':raw}
         reasons.extend(f'{team}: {n}' for n in unit.get('notes',[]))
     margin=points['home']-points['away'];total=sum(points.values());sd=model['margin_sd']
     hp=float(norm.cdf((margin-.5)/sd));ap=float(norm.cdf((-margin-.5)/sd));tie=max(0,1-hp-ap)
