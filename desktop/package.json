@@ -1,7 +1,7 @@
 {
   "name": "fantasy-manager-desktop",
   "productName": "Fantasy Manager",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Local fantasy football lineups, injuries and draft intelligence",
   "author": "crollila",
   "main": "main.cjs",

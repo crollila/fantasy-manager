@@ -4,6 +4,7 @@ import json
 import math
 from datetime import datetime,timezone,timedelta
 import numpy as np
+from app.game_model import same_team
 from app.storage import now
 
 
@@ -49,7 +50,7 @@ def settle_games(store,games,team_actuals=None):
         if not game.get('completed') or game['game_id'] not in forecasts:continue
         forecast=forecasts[game['game_id']];h=game['home_score'];a=game['away_score'];margin=h-a
         winner=game['home_team'] if h>a else game['away_team'] if a>h else 'TIE'
-        result={'forecast_id':forecast['forecast_id'],'game_id':game['game_id'],'season':game['season'],'week':game['week'],'home_team':game['home_team'],'away_team':game['away_team'],'home_score':h,'away_score':a,'pick':forecast['pick'],'winner':winner,'winner_result':'T' if winner=='TIE' else 'W' if winner==forecast['pick'] else 'L','predicted_home':forecast['home_score'],'predicted_away':forecast['away_score'],'score_mae':(abs(h-forecast['home_score'])+abs(a-forecast['away_score']))/2,'margin_error':margin-forecast['margin'],'total_error':h+a-forecast['total'],'saved_at':forecast['saved_at'],'model_version':forecast['model_version']}
+        result={'forecast_id':forecast['forecast_id'],'game_id':game['game_id'],'season':game['season'],'week':game['week'],'home_team':game['home_team'],'away_team':game['away_team'],'home_score':h,'away_score':a,'pick':forecast['pick'],'winner':winner,'winner_result':'T' if winner=='TIE' else 'W' if same_team(winner,forecast['pick']) else 'L','predicted_home':forecast['home_score'],'predicted_away':forecast['away_score'],'score_mae':(abs(h-forecast['home_score'])+abs(a-forecast['away_score']))/2,'margin_error':margin-forecast['margin'],'total_error':h+a-forecast['total'],'saved_at':forecast['saved_at'],'model_version':forecast['model_version']}
         probabilities=[forecast['home_win_probability'],forecast['away_win_probability'],forecast.get('tie_probability',0)]
         actual=[int(h>a),int(a>h),int(h==a)];result['brier']=sum((p-y)**2 for p,y in zip(probabilities,actual))
         line=forecast.get('market_home_margin');total=forecast.get('market_total')

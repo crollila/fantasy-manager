@@ -1,6 +1,6 @@
 # Windows application
 
-Download **Fantasy-Manager-Setup-0.6.0.exe** from [GitHub Releases](https://github.com/crollila/fantasy-manager/releases/latest). Run the installer, choose an installation folder, then open **Fantasy Manager** from Start or the desktop shortcut. Windows 10/11 x64 is the target. Python, Node, Chrome and developer tools are not prerequisites.
+Download **Fantasy-Manager-Setup-0.6.1.exe** from [GitHub Releases](https://github.com/crollila/fantasy-manager/releases/latest). Run the installer, choose an installation folder, then open **Fantasy Manager** from Start or the desktop shortcut. Windows 10/11 x64 is the target. Python, Node, Chrome and developer tools are not prerequisites.
 
 The installer is currently unsigned; Windows may identify its publisher as unknown. There is no automatic updater. Install a newer release over the existing application to update it. Uninstalling preserves your analysis data.
 

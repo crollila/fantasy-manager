@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 from app.storage import DATA,now
 from app.research_sources import refresh_inputs,read_frame,scoreboard,weather_for,depth_charts
-from app.game_model import train_games,game_prediction,kickoff,number
+from app.game_model import train_games,game_prediction,kickoff,number,label_pick
 from app.context_models import completed_stats,fit_matchups,play_calling,enrich_weather
 from app.roster_context import replacement_study,current_rosters
 from app.injuries import injury_report
@@ -132,6 +132,8 @@ def refresh_intelligence(store,season=None,cache_path=None):
                 from app.game_benchmarks import for_game
                 forecast['external_benchmarks']=for_game(store,game)
                 forecast=apply_learning(forecast,learning,active,pending)
+                # The pick and its stated probability must match the team labels published above.
+                forecast=label_pick(forecast)
                 save_game(store,forecast)
             games.append(game|{'forecast':forecast,'weather':(forecast or {}).get('weather',weather.get(game['game_id'],{}))})
         report={'season':season,'week':week,'updated_at':now(),'games':games,'sources':sources,'model':model,'matchups':matchups,'league_matchups':league_models,'play_calling':calling,'replacement_study':study,'rosters':rosters,'injury_status':health['status'],'process_model':{'metrics':list(process['models']),'method':process['method'],'range_note':process['range_note']},'coverage_notes':['Participation probabilities are separate from points-if-active.','Weather uses city-level forecast coordinates; missing weather receives neutral inputs.','Historical roster effects are observational and shrink toward zero.','Statistical expectations use joint offense/opponent strength; Next Gen Stats cover qualifying players, not every snap.','Current-season play-by-play and player/team stats usually arrive after game days; later corrections update reviews without rewriting picks.','Live route participation and licensed player-prop data are not bundled; unavailable inputs are explicitly missing.','Market schedule lines are a benchmark; no claim of beating closing lines.','Learning tests frozen corrections on future games; insufficient evidence leaves the current scoring model in place.']}

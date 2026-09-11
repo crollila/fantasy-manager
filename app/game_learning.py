@@ -100,7 +100,7 @@ def scores(home, away, sd, forecast):
     line, market_total = forecast.get('market_home_margin'), forecast.get('market_total')
     return {'home_score': h, 'away_score': a, 'margin': margin, 'total': total,
             'home_win_probability': hp, 'away_win_probability': ap, 'tie_probability': max(0, 1-hp-ap),
-            'pick': forecast['home_team'] if hp >= ap else forecast['away_team'],
+            'pick': forecast['home_team'] if hp >= ap else forecast['away_team'], 'pick_win_probability': max(hp, ap),
             'margin_p10': margin-1.28155*sd, 'margin_p90': margin+1.28155*sd,
             'ats_pick': None if line is None else 'home' if margin > line else 'away' if margin < line else 'pass',
             'total_pick': None if market_total is None else 'over' if total > market_total else 'under' if total < market_total else 'pass'}

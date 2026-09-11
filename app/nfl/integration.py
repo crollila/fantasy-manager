@@ -82,7 +82,7 @@ def legacy_shape(g: dict) -> dict:
         reasons.append(f"{g['home_team_display']} {item['points']:.1f}: {item['family']} ({item['feature']})")
     return {
         "model_version": f"engine:{g['model_id']}", "home_score": round(home, 2), "away_score": round(away, 2), "home_win_probability": hp, "away_win_probability": ap, "tie_probability": tie,
-        "pick": g["home_team_display"] if hp >= ap else g["away_team_display"], "margin": margin, "total": total, "margin_p10": f["margin_interval_80"][0], "margin_p90": f["margin_interval_80"][1], "margin_sd": f["margin_sd"],
+        "pick": g["home_team_display"] if hp >= ap else g["away_team_display"], "pick_win_probability": max(hp, ap), "margin": margin, "total": total, "margin_p10": f["margin_interval_80"][0], "margin_p90": f["margin_interval_80"][1], "margin_sd": f["margin_sd"],
         "market_home_margin": line, "market_total": market_total, "ats_pick": ats, "total_pick": ou, "market_source": market.get("source", "unavailable"),
         # Same shape the UI and the learning layer expect: per side, a baseline and named factors.
         "components": {"home": {"baseline": round(home, 2), "factors": drivers.get("by_family_points", {}), "inputs": {}}, "away": {"baseline": round(away, 2), "factors": {k: -v for k, v in drivers.get("by_family_points", {}).items()}, "inputs": {}}, "base_predictions": f.get("base_predictions", {}), "note": drivers.get("note")},

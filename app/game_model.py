@@ -26,6 +26,28 @@ def kickoff(row):
         return None
 
 
+def same_team(left, right):
+    """Compare team codes across sources. nflverse calls the Rams LA; ESPN calls them LAR."""
+    canonical={'WSH':'WAS','LA':'LAR','STL':'LAR','OAK':'LV','SD':'LAC'}
+    if not left or not right:return False
+    normalize=lambda t:canonical.get(str(t).strip().upper(),str(t).strip().upper())
+    return normalize(left)==normalize(right)
+
+
+def label_pick(forecast):
+    """Make the pick and its stated probability agree with the forecast's own team labels.
+
+    The pick is produced from the model's inputs (nflverse codes) while the published
+    forecast carries the scoreboard's codes, so the two are reconciled once, here, instead
+    of being matched as strings by the UI, the grader or the review.
+    """
+    home=forecast.get('home_team');away=forecast.get('away_team')
+    hp=number(forecast.get('home_win_probability'));ap=number(forecast.get('away_win_probability'))
+    if home and away:forecast['pick']=home if hp>=ap else away
+    forecast['pick_win_probability']=max(hp,ap)
+    return forecast
+
+
 def weather_features(team, weather):
     wind=max(0,number(weather.get('wind_mph'),0)-10)/10
     cold=max(0,40-number(weather.get('temperature_f'),60))/20
@@ -114,4 +136,4 @@ def game_prediction(model,row,weather=None,roster=None):
     # nflverse spread_line is the market-implied HOME winning margin (opposite home handicap).
     ats=None if line is None else ('home' if margin>line else 'away' if margin<line else 'pass')
     ou=None if market_total is None else ('over' if total>market_total else 'under' if total<market_total else 'pass')
-    return {'model_version':MODEL_VERSION,'home_score':round(points['home'],2),'away_score':round(points['away'],2),'home_win_probability':hp,'away_win_probability':ap,'tie_probability':tie,'pick':row['home_team'] if hp>=ap else row['away_team'],'margin':margin,'total':total,'margin_p10':margin-1.28155*sd,'margin_p90':margin+1.28155*sd,'market_home_margin':line,'market_total':market_total,'market_home_moneyline':number(row.get('home_moneyline'),None),'market_away_moneyline':number(row.get('away_moneyline'),None),'ats_pick':ats,'total_pick':ou,'home_spread_odds':number(row.get('home_spread_odds'),None),'away_spread_odds':number(row.get('away_spread_odds'),None),'over_odds':number(row.get('over_odds'),None),'under_odds':number(row.get('under_odds'),None),'market_source':'nflverse schedule snapshot; not a guaranteed live or closing line','components':components,'weather':weather or {'status':'unavailable'},'reasons':reasons,'warning':'Experimental independent model; no demonstrated edge over the market'}
+    return {'model_version':MODEL_VERSION,'home_score':round(points['home'],2),'away_score':round(points['away'],2),'home_win_probability':hp,'away_win_probability':ap,'tie_probability':tie,'pick':row['home_team'] if hp>=ap else row['away_team'],'pick_win_probability':max(hp,ap),'margin':margin,'total':total,'margin_p10':margin-1.28155*sd,'margin_p90':margin+1.28155*sd,'market_home_margin':line,'market_total':market_total,'market_home_moneyline':number(row.get('home_moneyline'),None),'market_away_moneyline':number(row.get('away_moneyline'),None),'ats_pick':ats,'total_pick':ou,'home_spread_odds':number(row.get('home_spread_odds'),None),'away_spread_odds':number(row.get('away_spread_odds'),None),'over_odds':number(row.get('over_odds'),None),'under_odds':number(row.get('under_odds'),None),'market_source':'nflverse schedule snapshot; not a guaranteed live or closing line','components':components,'weather':weather or {'status':'unavailable'},'reasons':reasons,'warning':'Experimental independent model; no demonstrated edge over the market'}

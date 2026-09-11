@@ -21,4 +21,4 @@ Check-Exit
 npm run dist
 Check-Exit
 Pop-Location
-Get-FileHash release/Fantasy-Manager-Setup-0.6.0.exe -Algorithm SHA256
+Get-FileHash release/Fantasy-Manager-Setup-0.6.1.exe -Algorithm SHA256

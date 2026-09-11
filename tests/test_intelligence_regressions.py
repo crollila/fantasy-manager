@@ -79,3 +79,37 @@ def test_paper_record_uses_saved_odds_not_assumed_even_money(tmp_path):
     report=dashboard(store)['paper_results']
     assert report['ats']['units']==pytest.approx(100/110)
     assert report['total']['units']==1.05
+
+
+def test_pick_and_probability_follow_published_team_codes():
+    """Regression: the Rams are LA in nflverse and LAR on the scoreboard. A forecast relabelled
+    with scoreboard codes must still name the favourite and quote that team's probability."""
+    from app.game_model import game_prediction, label_pick, same_team
+    model = {'intercept': 22., 'coefficients': {'home': .8}, 'margin_sd': 13.5, 'total_sd': 15.}
+    forecast = game_prediction(model, {'home_team': 'LA', 'away_team': 'SF'})
+    assert forecast['pick'] == 'LA'
+    assert forecast['home_score'] > forecast['away_score']
+    assert forecast['pick_win_probability'] == forecast['home_win_probability']
+    # Publishing overwrites the team labels with the scoreboard's spelling.
+    forecast.update(home_team='LAR', away_team='SF')
+    label_pick(forecast)
+    assert forecast['pick'] == 'LAR'
+    assert forecast['pick_win_probability'] == forecast['home_win_probability']
+    assert forecast['pick_win_probability'] > forecast['away_win_probability']
+    assert same_team('LA', 'LAR') and same_team('WSH', 'WAS') and not same_team('LA', 'LAC')
+
+
+def test_home_win_is_graded_correctly_across_team_code_spellings(tmp_path):
+    """Regression: a pick saved as LA must be graded a win when LAR wins the same game."""
+    from app.storage import Store
+    from app.tracking import save_game, settle_games, dashboard
+    from test_intelligence import forecast, final, NOW
+    store = Store(tmp_path)
+    saved = forecast() | {'home_team': 'LAR', 'away_team': 'SF', 'pick': 'LA',
+                          'home_win_probability': .55, 'away_win_probability': .448}
+    assert save_game(store, saved, NOW)
+    settle_games(store, [final() | {'home_team': 'LAR', 'away_team': 'SF', 'home_score': 27, 'away_score': 20}])
+    graded = dashboard(store)['results'][0]
+    assert graded['winner'] == 'LAR' and graded['pick'] == 'LA'
+    assert graded['winner_result'] == 'W'
+    assert graded['review']['right'][0].startswith('Winner: picked LA')

@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from app.game_model import features, kickoff, number, predict, ridge_fit
+from app.game_model import features, kickoff, number, predict, ridge_fit, same_team
 from app.research_sources import read_frame
 
 # label, display unit, minimum historical scatter, valid range
@@ -194,7 +194,7 @@ def review_game(forecast, game, actuals):
     right, missed, unknown, comparisons, players, conditions = [], [], [], [], [], []
     h, a = game['home_score'], game['away_score']
     winner = game['home_team'] if h > a else game['away_team'] if a > h else 'TIE'
-    (right if winner == forecast['pick'] else missed).append(
+    (right if same_team(winner, forecast['pick']) else missed).append(
         f"Winner: picked {forecast['pick']}; final winner {winner}.")
     deviations = []
     for side, score in [('home', h), ('away', a)]:
