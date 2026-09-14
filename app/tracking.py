@@ -15,6 +15,7 @@ def initialize(store):
         CREATE INDEX IF NOT EXISTS game_forecasts_game ON game_forecasts(game_id,id);
         CREATE TABLE IF NOT EXISTS game_results(game_id TEXT PRIMARY KEY,body TEXT NOT NULL,updated_at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS player_forecasts(id INTEGER PRIMARY KEY AUTOINCREMENT,league_id TEXT NOT NULL,player_id TEXT NOT NULL,game_id TEXT NOT NULL,created_at TEXT NOT NULL,kickoff TEXT NOT NULL,body TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS player_forecasts_key ON player_forecasts(league_id,player_id,game_id,id);
         CREATE TABLE IF NOT EXISTS player_results(forecast_id INTEGER PRIMARY KEY,body TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS game_observations(game_id TEXT NOT NULL,team TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(game_id,team));
         CREATE TABLE IF NOT EXISTS game_result_versions(id INTEGER PRIMARY KEY AUTOINCREMENT,game_id TEXT NOT NULL,forecast_id INTEGER NOT NULL,created_at TEXT NOT NULL,body TEXT NOT NULL,fingerprint TEXT NOT NULL,UNIQUE(game_id,forecast_id,fingerprint));
@@ -109,19 +110,63 @@ def dashboard(store):
     return {'paper_results':paper,'straight_up':rates(rows,'winner_result'),'against_spread':rates(rows,'ats_result'),'totals':rates(rows,'total_result'),'market_common_games':{'model':rates(common,'winner_result'),'market_favorite':rates(common,'market_favorite_result')},'score_mae':float(np.mean([r['score_mae'] for r in rows])) if rows else None,'brier_score':float(np.mean([r['brier'] for r in rows])) if rows else None,'brier_definition':'Three-outcome home/away/tie Brier score; lower is better','games_graded':len(rows),'forecast_versions_saved':count,'results':rows[:300],'by_model_version':{v:rates([r for r in rows if r['model_version']==v],'winner_result') for v in {r['model_version'] for r in rows}},'players':{**{event+'_brier':float(np.mean([r[event+'_brier'] for r in player_rows if event+'_brier' in r])) if any(event+'_brier' in r for r in player_rows) else None for event in ('boom','bust')},'graded':len(player_rows),'common_espn_games':len(common_players),'common_model_mae':float(np.mean([abs(r['actual']-r['forecast']) for r in common_players])) if common_players else None,'mae':float(np.mean([abs(r['actual']-r['forecast']) for r in player_rows])) if player_rows else None,'espn_mae':float(np.mean([abs(r['actual']-r['espn']) for r in player_rows if r.get('espn') is not None])) if any(r.get('espn') is not None for r in player_rows) else None,'range_coverage':float(np.mean([r['p10']<=r['actual']<=r['p90'] for r in player_rows])) if player_rows else None},'note':'Only saved pre-kickoff forecasts count. W/L excludes ties and pushes. No bets are placed; accuracy is not evidence of profitability.'}
 
 
-def save_players(store,league,advice):
-    initialize(store);stamp=datetime.now(timezone.utc)
-    rows=[s['player'] for s in advice['starters'] if s['player']]+advice['bench']
+PROJECTION_FIELDS=('name','position','mean','points_if_active','espn_projection','independent_projection','p10','p90','boom','bust','boom_threshold','bust_threshold','play_probability','learned_correction','injury_status','context','weights','scoring')
+# A new archived version is written only when the projection actually moved, so repeated
+# refreshes with unchanged inputs do not fill the ledger with identical rows.
+CHANGE_FIELDS=('mean','p10','p90','play_probability','injury_status','learned_correction','espn_projection')
+
+
+def unchanged(old,new):
+    for k in CHANGE_FIELDS:
+        a,b=old.get(k),new.get(k)
+        if isinstance(a,(int,float)) and isinstance(b,(int,float)):
+            if abs(float(a)-float(b))>1e-6:return False
+        elif a!=b:return False
+    return True
+
+
+def save_player_rows(store,league,week,rows,stamp=None):
+    """Archive pregame player projections. Rows saved at or after kickoff are refused."""
+    initialize(store);stamp=stamp or datetime.now(timezone.utc);saved=0
     with store.connect() as c:
         for p in rows:
             game=p.get('game',{});when=game.get('kickoff');gid=game.get('game_id')
             if not when or not gid or stamp>=date(when):continue
-            data={k:p.get(k) for k in ('name','position','mean','points_if_active','espn_projection','independent_projection','p10','p90','boom','bust','boom_threshold','bust_threshold','play_probability','learned_correction','injury_status','context','weights','scoring')}
-            data['scoring']=p.get('scoring',league.scoring);data['bonuses']=[b.model_dump() for b in league.bonuses];data['season']=league.season;data['week']=advice['week'];data['model_version']='0.4.0-context-1'
+            data={k:p.get(k) for k in PROJECTION_FIELDS}
+            data['scoring']=p.get('scoring',league.scoring);data['bonuses']=[b.model_dump() for b in league.bonuses];data['season']=league.season;data['week']=week;data['model_version']='0.4.0-context-1'
             previous=c.execute('SELECT body FROM player_forecasts WHERE league_id=? AND player_id=? AND game_id=? ORDER BY id DESC LIMIT 1',(league.id,p['id'],gid)).fetchone()
             if previous:
-                old=json.loads(previous[0]);p['projection_change']={'previous':old['mean'],'current':p['mean'],'delta':p['mean']-old['mean'],'injury_changed':old.get('injury_status')!=p.get('injury_status'),'context_changed':old.get('context')!=p.get('context')}
+                old=json.loads(previous[0])
+                p['projection_change']={'previous':old['mean'],'current':p['mean'],'delta':p['mean']-old['mean'],'injury_changed':old.get('injury_status')!=p.get('injury_status'),'context_changed':old.get('context')!=p.get('context')}
+                if unchanged(old,data):continue
             c.execute('INSERT INTO player_forecasts(league_id,player_id,game_id,created_at,kickoff,body) VALUES(?,?,?,?,?,?)',(league.id,p['id'],gid,stamp.isoformat(),when,json.dumps(data,allow_nan=False)))
+            saved+=1
+    return saved
+
+
+def save_players(store,league,advice):
+    rows=[s['player'] for s in advice['starters'] if s['player']]+advice['bench']
+    return save_player_rows(store,league,advice['week'],rows)
+
+
+def final_pregame_forecasts(c,game_ids=None):
+    """The last version of each (league, player, game) forecast saved before its kickoff.
+
+    Timestamps are compared as parsed datetimes, not as strings: kickoffs and save times
+    reach the ledger in different ISO spellings ("...Z" and "...+00:00"), so a text
+    comparison could pick a forecast saved after the game had already started.
+    """
+    best={}
+    query='SELECT * FROM player_forecasts'
+    rows=c.execute(query).fetchall()
+    for r in rows:
+        if game_ids is not None and r['game_id'] not in game_ids:continue
+        try:
+            if date(r['created_at'])>=date(r['kickoff']):continue
+        except ValueError:continue
+        key=(r['league_id'],r['player_id'],r['game_id'])
+        if key not in best or r['id']>best[key]['id']:best[key]=r
+    return list(best.values())
 
 
 def settle_players(store,stats,players,completed_games):
@@ -132,13 +177,13 @@ def settle_players(store,stats,players,completed_games):
     mapping={p.id:p.ids.get('gsis',p.id) for p in players}
     lookup={(r['game_id'],str(r['player_id'])):r for r in stats.to_dict('records')}
     with store.connect() as c:
-        rows=c.execute('SELECT * FROM player_forecasts WHERE id IN (SELECT MAX(id) FROM player_forecasts GROUP BY league_id,player_id,game_id)').fetchall()
-        # A newer pregame version supersedes earlier versions; retain forecast history, grade once.
+        rows=final_pregame_forecasts(c,completed_games)
+        # The last version saved strictly before kickoff is the graded one; later versions
+        # (and any saved after kickoff) are retained as history but never scored.
         valid={r['id'] for r in rows}
         for old in c.execute('SELECT forecast_id FROM player_results').fetchall():
             if old[0] not in valid:c.execute('DELETE FROM player_results WHERE forecast_id=?',(old[0],))
         for r in rows:
-            if r['game_id'] not in completed_games or date(r['created_at'])>=date(r['kickoff']):continue
             actual=lookup.get((r['game_id'],mapping.get(r['player_id'],r['player_id'])))
             if actual is None:continue # Missing statistics do not prove a DNP or a zero score.
             body=json.loads(r['body']);scoring=body['scoring']

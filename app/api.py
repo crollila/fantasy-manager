@@ -118,9 +118,15 @@ async def lifespan(app):
                 except Exception as exc:
                     (DATA / "refresh-error.json").write_text(json.dumps({"at":now(),"error":str(exc)}))
     async def intelligence_schedule():
+        # Run once at startup so a restart resumes the loop from persisted state without
+        # waiting a quarter of an hour or needing anyone to press anything.
+        first=True
         while True:
-            await asyncio.sleep(900)
-            if os.environ.get('FANTASY_DISABLE_AUTO_REFRESH')=='1':continue
+            if not first:await asyncio.sleep(900)
+            first=False
+            if os.environ.get('FANTASY_DISABLE_AUTO_REFRESH')=='1':
+                await asyncio.sleep(900)
+                continue
             try:
                 from app.intelligence import refresh_intelligence
                 await asyncio.to_thread(refresh_intelligence,store)

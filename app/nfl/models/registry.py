@@ -75,6 +75,10 @@ class Registry:
             "metrics": metrics, "config": config, "notes": notes, "artifact": str(folder / "model.pkl"),
             "dataset_fingerprint": fingerprint(paths().features / FEATURE_VERSION / "games_pregame.parquet"),
         }
+        # Recorded on the card so the automatic weekly refit can tell what the champion has
+        # already seen without unpickling the artifact.
+        if artifact.get("trained_through"):
+            record["trained_through"] = artifact["trained_through"]
         (folder / "card.json").write_text(json.dumps(record, indent=2, default=str))
         body = self.read()
         body["models"] = [m for m in body["models"] if m["model_id"] != model_id] + [record]

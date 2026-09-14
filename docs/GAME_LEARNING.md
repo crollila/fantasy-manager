@@ -7,11 +7,28 @@ Version 0.5 adds **Accuracy → Review** and a **Learning** tab. No subscription
 On app open, manual refresh, and every 15 minutes while the app runs:
 
 1. Refresh the public schedule, scoreboard, injury/depth reports and statistical feeds.
-2. Match final games to predictions actually saved before kickoff. Review final scores and available statistical evidence; preserve earlier observations during a source outage.
-3. Update derived grades when a publisher corrects a score or statistic. Keep the original predictions and a versioned review history.
-4. Update the foundation model from completed game history and fit statistical expectations. An eight-hour kickoff buffer keeps partially populated live schedule scores out of training.
-5. Evaluate any frozen correction that has accumulated its required later-game test. Train a new candidate when enough eligible archived games exist.
-6. Save future picks, statistical expectations, injury/participation assumptions, weather, market snapshots, exact model coefficients and input-source hashes. If a candidate is being tested, save its shadow score alongside the published score.
+2. **Refit the forecasting engine champion when a new NFL week has completed.** Once every
+   regular-season game in a week has a final score, the champion's learners are refit on every
+   completed game available at that moment and promoted in the registry, and the forecasts
+   produced later in the same refresh already use the new model. No command, release or restart
+   is involved. The refit state is persisted (the registry card's `trained_through` and a `meta`
+   row), so a restart resumes without repeating or losing a refit, and a refit that fails is
+   recorded and not retried until the next completed week.
+3. **Project and archive every player with an upcoming game**, not only the players on a
+   connected roster, under a fixed default scoring rule. A new version is archived whenever a
+   projection actually moves, so late injury news and updated inputs are captured without
+   filling the ledger with identical rows.
+4. Match final games to predictions actually saved before kickoff. Review final scores and available statistical evidence; preserve earlier observations during a source outage.
+5. Update derived grades when a publisher corrects a score or statistic. Keep the original predictions and a versioned review history.
+6. Update the foundation model from completed game history and fit statistical expectations. An eight-hour kickoff buffer keeps partially populated live schedule scores out of training.
+7. Evaluate any frozen correction that has accumulated its required later-game test. Train a new candidate when enough eligible archived games exist.
+8. Save future picks, statistical expectations, injury/participation assumptions, weather, market snapshots, exact model coefficients and input-source hashes. If a candidate is being tested, save its shadow score alongside the published score.
+
+Player forecasts are graded against the **last version saved strictly before that player's
+kickoff**. If the app was not running at kickoff, the most recent valid pregame version is used
+instead; a version written after kickoff is kept as history and never scored. Timestamps are
+compared as parsed datetimes rather than strings, because kickoffs and save times arrive in
+different ISO spellings.
 
 Nothing runs while the app is closed. Cached picks, reviews and learning history remain available offline. A missing source can delay a detailed review; it never creates an invented zero.
 

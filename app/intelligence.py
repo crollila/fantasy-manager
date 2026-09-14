@@ -16,6 +16,8 @@ from app.game_evidence import observations,fit_expectations,expectations
 from app.game_learning import update_learning,apply_learning,archive_artifact,artifact,diagnostics,dashboard as learning_dashboard
 from app.player_learning import fit_correction as fit_player_correction, summary as player_correction_summary
 
+import logging
+log=logging.getLogger(__name__)
 _lock=threading.Lock()
 
 
@@ -68,9 +70,17 @@ def refresh_intelligence(store,season=None,cache_path=None):
         from app.market_data import fetch_markets
         markets,market_status=fetch_markets(board);sources.append(market_status)
         # Point-in-time forecasting engine (app.nfl): champion ensemble forecasts for upcoming games.
-        from app.nfl.integration import engine_forecasts
+        from app.nfl.integration import engine_forecasts,refresh_engine_data
         progress('Refreshing the forecasting engine (nflverse raw store, features, champion forecasts)')
-        engine,engine_status=engine_forecasts([g['game_id'] for g in board if g.get('state')=='pre'],season=season);sources.append(engine_status)
+        # Build current features first so an automatic refit and the forecasts that follow
+        # both see every completed game; the forecast call then reuses that same data.
+        engine_data_ok=True
+        try:refresh_engine_data(season)
+        except Exception as exc:engine_data_ok=False;log.warning('engine data refresh failed: %s',exc)
+        from app.auto_refit import maybe_refit
+        refit=maybe_refit(store,schedule,season,as_of,progress) if engine_data_ok else {'action':'skipped; engine data unavailable'}
+        engine,engine_status=engine_forecasts([g['game_id'] for g in board if g.get('state')=='pre'],season=season,refresh=False);sources.append(engine_status)
+        engine_status['automatic_refit']=refit
         progress('Fitting opponent strength, weather and replacement-player models')
         stats,historical_games=completed_stats(cache_path,season,as_of)
         model=train_games(schedule,as_of)
@@ -103,6 +113,7 @@ def refresh_intelligence(store,season=None,cache_path=None):
         settle_players(store,stats,store.players(season),{g['game_id'] for g in settle_board if g.get('completed')})
         progress('Testing learned corrections and fitting statistical expectations')
         learning=update_learning(store)
+        player_correction=fit_player_correction(store,as_of)
         process=fit_expectations(actuals,schedule,as_of)
         # Artifacts preserve coefficients and source hashes without copying personal league data.
         base_artifact=archive_artifact(store,'foundation',{'model':model,'process':process,'sources':sources},as_of)
@@ -138,6 +149,11 @@ def refresh_intelligence(store,season=None,cache_path=None):
                 save_game(store,forecast)
             games.append(game|{'forecast':forecast,'weather':(forecast or {}).get('weather',weather.get(game['game_id'],{}))})
         report={'season':season,'week':week,'updated_at':now(),'games':games,'sources':sources,'model':model,'matchups':matchups,'league_matchups':league_models,'play_calling':calling,'replacement_study':study,'rosters':rosters,'injury_status':health['status'],'process_model':{'metrics':list(process['models']),'method':process['method'],'range_note':process['range_note']},'coverage_notes':['Participation probabilities are separate from points-if-active.','Weather uses city-level forecast coordinates; missing weather receives neutral inputs.','Historical roster effects are observational and shrink toward zero.','Statistical expectations use joint offense/opponent strength; Next Gen Stats cover qualifying players, not every snap.','Current-season play-by-play and player/team stats usually arrive after game days; later corrections update reviews without rewriting picks.','Live route participation and licensed player-prop data are not bundled; unavailable inputs are explicitly missing.','Market schedule lines are a benchmark; no claim of beating closing lines.','Learning tests frozen corrections on future games; insufficient evidence leaves the current scoring model in place.']}
+        progress('Projecting and archiving every player with an upcoming game')
+        from app.player_archive import archive_projections
+        archive=archive_projections(store,season,week,board,health,report|{'player_correction':player_correction},cache_path,datetime.now(timezone.utc))
+        report['player_archive']=archive
+        report['automatic_refit']=refit
         set_meta(store,'intelligence-report',report)
         set_meta(store,'intelligence-status',{'state':'complete','updated_at':now(),'stage':'Forecasts and results updated'})
         return {'season':season,'week':week,'games':len(games),'updated_at':report['updated_at']}

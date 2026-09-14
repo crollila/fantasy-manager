@@ -13,10 +13,30 @@ from app.injuries import availability
 from app.availability import participation
 from app.context_models import matchup_adjustment,play_type_adjustment
 
+_frames={}
+
+
+def cached_frame(path):
+    """Read a cache parquet once per file version.
+
+    Projecting every player re-read these files once per player, which made the
+    all-player archive cost thousands of reads per refresh. The modification time is part
+    of the key, so a refreshed download is still picked up immediately.
+    """
+    path=Path(path)
+    if not path.exists():return None
+    stamp=path.stat().st_mtime_ns
+    hit=_frames.get(str(path))
+    if hit is not None and hit[0]==stamp:return hit[1]
+    frame=pd.read_parquet(path)
+    _frames[str(path)]=(stamp,frame)
+    return frame
+
+
 def recent_usage(player,season,week,cache_path):
     path=Path(cache_path)/f'stats_{season}.parquet'
-    if not path.exists():return {},None
-    frame=pd.read_parquet(path)
+    frame=cached_frame(path)
+    if frame is None:return {},None
     if 'player_id' not in frame:return {},None
     frame=frame[(frame.player_id==player.ids.get('gsis',player.id))&(frame.week<week)&(frame.season_type=='REG')].sort_values('week').tail(4)
     if frame.empty:return {},None
@@ -25,9 +45,9 @@ def recent_usage(player,season,week,cache_path):
     return values,{'weeks':frame.week.astype(int).tolist(),'source':path.name,'sample_size':len(frame)}
 
 def game_context(player,season,week,cache_path):
-    path=Path(cache_path)/'schedules.parquet'
-    if not path.exists():return {}
-    frame=pd.read_parquet(path);team=player.team
+    frame=cached_frame(Path(cache_path)/'schedules.parquet')
+    if frame is None:return {}
+    team=player.team
     frame=frame[(frame.season==season)&(frame.week==week)&(frame.game_type=='REG')&((frame.home_team==team)|(frame.away_team==team))]
     if frame.empty:return {}
     row=frame.iloc[0];out={'game_id':str(row.game_id),'opponent':str(row.away_team if row.home_team==team else row.home_team),'home':bool(row.home_team==team),'date':str(row.get('gameday',''))}
