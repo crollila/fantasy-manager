@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import Field
+from app import __version__
 from app.domain import League, Pick, Player, Event, Strict, Snapshot
 from app.storage import Store, ROOT, DATA, now
 from app.demo import demo_players,demo_league
@@ -132,7 +133,7 @@ async def lifespan(app):
     intel_task.cancel()
 
 
-app = FastAPI(title="Fantasy Manager",version="0.5.0",lifespan=lifespan)
+app = FastAPI(title="Fantasy Manager",version=__version__,lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=["127.0.0.1","localhost","testserver"])
 
 
@@ -162,7 +163,7 @@ async def value_error(request,exc):
 
 @app.get("/api/health")
 def health():
-    return {"app":"fantasy-manager","version":"0.5.0","instance":os.environ.get("FANTASY_INSTANCE","")}
+    return {"app":"fantasy-manager","version":__version__,"instance":os.environ.get("FANTASY_INSTANCE","")}
 
 
 @app.get("/api/connections")
@@ -193,7 +194,7 @@ def save_connection(body:ConnectionRequest):
 
 @app.get("/api/bootstrap")
 def bootstrap():
-    return {"token":store.token,"version":"0.5.0","leagues":[l.model_dump() for l in store.leagues()]}
+    return {"token":store.token,"version":__version__,"leagues":[l.model_dump() for l in store.leagues()]}
 
 
 @app.get("/api/leagues")

@@ -21,3 +21,13 @@ def test_api_auth_idempotency_and_league_isolation(tmp_path,monkeypatch):
         assert client.post('/api/leagues/test/draft?revision=0',headers=headers,json=body).status_code==400
         assert client.post('/api/leagues/test/draft?revision=1',headers=headers,json=body).json()['revision']==1
         assert client.get('/api/leagues/test/state',headers=headers).json()['draft']['picks'][0]['player_id']=='demo-1'
+
+
+def test_reported_version_matches_the_packaged_desktop_version():
+    """The installer and /api/health must not drift apart: both read one version."""
+    import json
+    from app import __version__
+    from app.storage import ROOT
+    packaged=json.loads((ROOT/'desktop'/'package.json').read_text(encoding='utf-8'))['version']
+    assert __version__==packaged
+    assert api.health()['version']==packaged
