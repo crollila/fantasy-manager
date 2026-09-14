@@ -114,6 +114,16 @@ def refresh_intelligence(store,season=None,cache_path=None):
         progress('Testing learned corrections and fitting statistical expectations')
         learning=update_learning(store)
         player_correction=fit_player_correction(store,as_of)
+        # Refit the promoted point model on every completed week, so the next projections
+        # use it without any command, release or restart.
+        progress('Refitting the player point projection model on completed weeks')
+        try:
+            from app.player_model import cached_fit as fit_point_model, current_features
+            point_model=fit_point_model(cache_path=cache_path,as_of=as_of)
+            from app.player_model import upcoming_players
+            point_features=current_features(season,week,cache_path,upcoming_players(store,season,board)) if point_model else None
+        except Exception as exc:
+            point_model=None;point_features=None;log.warning('player point model unavailable: %s',exc)
         process=fit_expectations(actuals,schedule,as_of)
         # Artifacts preserve coefficients and source hashes without copying personal league data.
         base_artifact=archive_artifact(store,'foundation',{'model':model,'process':process,'sources':sources},as_of)
@@ -151,8 +161,11 @@ def refresh_intelligence(store,season=None,cache_path=None):
         report={'season':season,'week':week,'updated_at':now(),'games':games,'sources':sources,'model':model,'matchups':matchups,'league_matchups':league_models,'play_calling':calling,'replacement_study':study,'rosters':rosters,'injury_status':health['status'],'process_model':{'metrics':list(process['models']),'method':process['method'],'range_note':process['range_note']},'coverage_notes':['Participation probabilities are separate from points-if-active.','Weather uses city-level forecast coordinates; missing weather receives neutral inputs.','Historical roster effects are observational and shrink toward zero.','Statistical expectations use joint offense/opponent strength; Next Gen Stats cover qualifying players, not every snap.','Current-season play-by-play and player/team stats usually arrive after game days; later corrections update reviews without rewriting picks.','Live route participation and licensed player-prop data are not bundled; unavailable inputs are explicitly missing.','Market schedule lines are a benchmark; no claim of beating closing lines.','Learning tests frozen corrections on future games; insufficient evidence leaves the current scoring model in place.']}
         progress('Projecting and archiving every player with an upcoming game')
         from app.player_archive import archive_projections
-        archive=archive_projections(store,season,week,board,health,report|{'player_correction':player_correction},cache_path,datetime.now(timezone.utc))
+        projection_context=report|{'player_correction':player_correction,'player_point_model':point_model,'player_model_features':point_features}
+        archive=archive_projections(store,season,week,board,health,projection_context,cache_path,datetime.now(timezone.utc))
         report['player_archive']=archive
+        from app.player_model import summary as point_model_summary
+        report['player_point_model']=point_model_summary(point_model)
         report['automatic_refit']=refit
         set_meta(store,'intelligence-report',report)
         set_meta(store,'intelligence-status',{'state':'complete','updated_at':now(),'stage':'Forecasts and results updated'})

@@ -53,6 +53,23 @@ def control_projection(frame):
     return out
 
 
+def opponent_multiplier(frame):
+    """Production also scales by a fitted opponent/position multiplier; reconstruct it walk-forward.
+
+    Points allowed by each defence to each position, using only games already played, shrunk
+    toward 1.0. Including it makes the control a faithful and *stronger* baseline, so a
+    candidate has to beat the current method at its best rather than a stripped-down version.
+    """
+    frame = frame.sort_values(['season', 'week']).copy()
+    league = frame.groupby(['season', 'position'])['actual'].transform(lambda s: s.expanding().mean().shift(1))
+    by_def = frame.groupby(['opponent', 'position'])['actual']
+    allowed = by_def.transform(lambda s: s.expanding().mean().shift(1))
+    count = by_def.transform(lambda s: s.expanding().count().shift(1))
+    ratio = (allowed / league.replace(0, np.nan)).fillna(1.)
+    shrink = (count / (count + 24)).fillna(0.)
+    return (1. + (ratio - 1.) * shrink).clip(.65, 1.4).fillna(1.)
+
+
 def prepare(seasons=range(2019, 2027), cache_path=None):
     """Feature frame joined to the realised fantasy points for each player-week."""
     frame = build(seasons, cache_path)
@@ -61,7 +78,14 @@ def prepare(seasons=range(2019, 2027), cache_path=None):
     stats['actual'] = actual_points(stats)
     keys = ['season', 'week', 'player_id']
     frame = frame.merge(stats[keys + ['actual']], on=keys, how='inner')
-    frame['control'] = control_projection(frame)
+    frame['control_raw'] = control_projection(frame)
+    frame['opp_mult'] = opponent_multiplier(frame.assign(actual=frame.actual))
+    frame['control_matchup'] = frame['control_raw'] * frame['opp_mult']
+    # Reconstructing production's opponent multiplier scored worse than omitting it
+    # (MAE 4.750 vs 4.592, bias +0.75), so the reconstruction is at fault rather than the
+    # production factor. The control uses the stronger variant: a candidate must beat the
+    # best available reconstruction of the current method, not a handicapped one.
+    frame['control'] = frame['control_raw']
     # Mirror what actually gets projected: a player with no prior workload is not forecast.
     prior = frame[[c for c in ('use_targets_std', 'use_carries_std', 'use_attempts_std') if c in frame]].fillna(0).sum(axis=1)
     frame = frame[prior > 0].copy()
@@ -81,11 +105,14 @@ def fit_predict(train, test, features, position, seed=11, objective='l1'):
         model = Ridge(alpha=10.)
         model.fit(scaler.fit_transform(x_train.fillna(0)), y_train)
         return model.predict(scaler.transform(x_test.fillna(0)))
-    # The primary metric is MAE, and a squared-error fit shrinks toward the mean in a way
-    # that measurably costs MAE on this target, so the default objective is L1.
-    model = LGBMRegressor(objective=objective, n_estimators=300, num_leaves=15, learning_rate=.05,
-                          min_child_samples=40, subsample=.8, subsample_freq=1, colsample_bytree=.7,
-                          reg_lambda=5., random_state=seed, n_jobs=2, verbose=-1)
+    kwargs = dict(n_estimators=300, num_leaves=15, learning_rate=.05, min_child_samples=40,
+                  subsample=.8, subsample_freq=1, colsample_bytree=.7, reg_lambda=5.,
+                  random_state=seed, n_jobs=4, verbose=-1)
+    if objective.startswith('quantile_'):
+        # Prediction intervals for coverage: the 10th and 90th percentile of the same features.
+        model = LGBMRegressor(objective='quantile', alpha=int(objective.split('_')[1]) / 100, **kwargs)
+    else:
+        model = LGBMRegressor(objective=objective, **kwargs)
     model.fit(x_train, y_train)
     return model.predict(x_test)
 

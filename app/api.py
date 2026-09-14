@@ -472,6 +472,14 @@ def weekly_lineup(league_id:str,body:LineupRequest):
     context_data=weekly_context(store,league,body.week)
     context_data['blend_weights']={pos:blend_weight(store,pos)[0] for pos in ('QB','RB','WR','TE','K','DST')}
     context_data['player_correction']=fit_correction(store)
+    from app.player_model import cached_fit as fit_point_model, current_features
+    try:
+        context_data['player_point_model']=fit_point_model()
+        from app.player_model import upcoming_players
+        _board=weekly_context(store,league,body.week).get('games') or context_data.get('games') or []
+        context_data['player_model_features']=current_features(league.season,body.week,None,upcoming_players(store,league.season,_board)) if context_data['player_point_model'] else None
+    except Exception:
+        context_data['player_point_model']=None;context_data['player_model_features']=None
     opponent=meta.get('opponents',{}).get(str(league.my_team))
     opponent_ids=[p.player_id for p in owned if opponent is not None and p.team==opponent]
     advice=lineup_advice(players,league,ids,meta,health,body.week,body.risk,context=context_data,opponent_ids=opponent_ids)

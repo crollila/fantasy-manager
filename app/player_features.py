@@ -27,6 +27,34 @@ USAGE_COLUMNS = ('targets', 'carries', 'attempts', 'receptions', 'receiving_yard
                  'air_yards_share', 'receiving_air_yards', 'receiving_yards_after_catch')
 
 
+def add_upcoming(frame, keys, season, week, values, extra=None):
+    """Append empty rows for a week that has not been played, so it gets lagged features.
+
+    Every feature here comes from ``shift(1)`` over prior rows, so a target week needs a row
+    to exist before it can receive one. A completed week gets that row from the box score; an
+    upcoming week has no box score yet, so one is appended with no statistics in it. The
+    appended row contributes nothing to anyone's history precisely because it is empty, and
+    it cannot see itself because the shift still excludes it.
+    """
+    if frame is None or frame.empty or not values:
+        return frame
+    present = frame[(frame.season == season) & (frame.week == week)]
+    have = set(map(tuple, present[keys].to_numpy())) if not present.empty else set()
+    rows = []
+    for value in values:
+        value = value if isinstance(value, tuple) else (value,)
+        if value in have:
+            continue
+        row = {k: v for k, v in zip(keys, value)}
+        row.update(season=season, week=week)
+        if extra:
+            row.update(extra)
+        rows.append(row)
+    if not rows:
+        return frame
+    return pd.concat([frame, pd.DataFrame(rows)], ignore_index=True)
+
+
 def read(path):
     path = Path(path)
     return pd.read_parquet(path) if path.exists() else pd.DataFrame()
@@ -162,17 +190,21 @@ def red_zone_frame(pbp):
     return out
 
 
-def red_zone_features(pbp):
+def red_zone_features(pbp, upcoming=None):
     frame = red_zone_frame(pbp)
     if frame.empty:
         return pd.DataFrame()
+    if upcoming:
+        people = upcoming['players']
+        frame = add_upcoming(frame, ['player_id', 'team'], upcoming['season'], upcoming['week'],
+                             list(map(tuple, people[['player_id', 'team']].to_numpy())))
     columns = [c for c in frame.columns if c.startswith(('rz_', 'share_rz_', 'team_rz_'))]
     return expanding_lagged(frame, ['player_id'], ('season', 'week'), columns, 'rz_')
 
 
 # --------------------------------------------------------------------------- team pace / pass rate
 
-def team_pass_features(pbp):
+def team_pass_features(pbp, upcoming=None):
     """Lagged team plays, pass rate and neutral pass rate — the pass-rate forecast as an input."""
     if pbp.empty:
         return pd.DataFrame()
@@ -188,12 +220,14 @@ def team_pass_features(pbp):
     neutral = frame[frame.neutral].groupby(['season', 'week', 'posteam'], as_index=False).agg(team_neutral_pass_rate=('pass', 'mean'))
     agg = agg.merge(neutral, on=['season', 'week', 'posteam'], how='left')
     agg = agg.rename(columns={'posteam': 'team'})
+    if upcoming:
+        agg = add_upcoming(agg, ['team'], upcoming['season'], upcoming['week'], sorted(set(upcoming['players'].team)))
     return expanding_lagged(agg, ['team'], ('season', 'week'), ['team_plays', 'team_pass_rate', 'team_neutral_pass_rate'], 'off_')
 
 
 # --------------------------------------------------------------------------- opponent defense
 
-def defense_features(pbp):
+def defense_features(pbp, upcoming=None):
     """Lagged opponent pass/rush defensive splits. Only games already played contribute."""
     if pbp.empty:
         return pd.DataFrame()
@@ -222,6 +256,8 @@ def defense_features(pbp):
         sacks = frame[frame.is_pass].groupby(['season', 'week', 'defteam'], as_index=False).agg(def_sack_rate=('sack', 'mean'))
         merged = merged.merge(sacks, on=['season', 'week', 'defteam'], how='left')
     merged = merged.rename(columns={'defteam': 'opponent'})
+    if upcoming:
+        merged = add_upcoming(merged, ['opponent'], upcoming['season'], upcoming['week'], sorted(set(upcoming['players'].opponent)))
     columns = [c for c in merged.columns if c.startswith('def_')]
     return expanding_lagged(merged, ['opponent'], ('season', 'week'), columns, 'opp_')
 
@@ -237,11 +273,29 @@ def load_sources(seasons, cache_path=None):
     return stats, snaps, pbp, schedule
 
 
-def build(seasons, cache_path=None):
-    """One pregame-safe row per player-week for the seasons requested."""
+def build(seasons, cache_path=None, upcoming=None):
+    """One pregame-safe row per player-week for the seasons requested.
+
+    ``upcoming`` optionally names a week that has not been played
+    ``{'season', 'week', 'players': DataFrame[player_id, position, team, opponent]}``; those
+    player-weeks are given rows so they receive lagged features like any other week. Without
+    it the model can only score games that already happened.
+    """
     stats, snaps, pbp, schedule = load_sources(seasons, cache_path)
     if stats.empty:
         return pd.DataFrame()
+    if upcoming:
+        season, week = upcoming['season'], upcoming['week']
+        people = upcoming['players']
+        stats = add_upcoming(stats, ['player_id', 'position', 'team', 'opponent_team'], season, week,
+                             list(map(tuple, people[['player_id', 'position', 'team', 'opponent']].to_numpy())),
+                             extra={'season_type': 'REG'})
+        if not snaps.empty:
+            ids = read(Path(cache_path or DATA/'cache')/'players.parquet')
+            if not ids.empty and {'gsis_id', 'pfr_id'} <= set(ids.columns):
+                mapping = ids[['gsis_id', 'pfr_id']].dropna().drop_duplicates('gsis_id').set_index('gsis_id').pfr_id
+                pfr = [mapping.get(p) for p in people.player_id if mapping.get(p) is not None]
+                snaps = add_upcoming(snaps, ['pfr_player_id'], season, week, pfr, extra={'game_type': 'REG'})
     base = stats[(stats.season_type == 'REG') & (stats.position.isin(POSITIONS))].copy()
     frame = base[['season', 'week', 'player_id', 'player_display_name', 'position', 'team', 'opponent_team']].copy()
     frame = frame.rename(columns={'opponent_team': 'opponent'})
@@ -249,7 +303,7 @@ def build(seasons, cache_path=None):
     usage = player_usage(stats)
     frame = frame.merge(usage.drop(columns=['position', 'team'], errors='ignore'), on=['player_id', 'season', 'week'], how='left')
 
-    rz = red_zone_features(pbp)
+    rz = red_zone_features(pbp, upcoming)
     if not rz.empty:
         frame = frame.merge(rz, on=['player_id', 'season', 'week'], how='left')
 
@@ -261,11 +315,11 @@ def build(seasons, cache_path=None):
         if not snapf.empty:
             frame = frame.merge(snapf.rename(columns={'pfr_player_id': 'pfr_id'}), on=['pfr_id', 'season', 'week'], how='left')
 
-    off = team_pass_features(pbp)
+    off = team_pass_features(pbp, upcoming)
     if not off.empty:
         frame = frame.merge(off, on=['team', 'season', 'week'], how='left')
 
-    dfn = defense_features(pbp)
+    dfn = defense_features(pbp, upcoming)
     if not dfn.empty:
         frame = frame.merge(dfn, on=['opponent', 'season', 'week'], how='left')
 

@@ -176,3 +176,51 @@ def test_expanding_lagged_shifts_before_every_window():
     assert out.iloc[-1].x_v_last1 == 4.
     assert out.iloc[-1].x_v_last3 == pytest.approx(3.)   # mean of 2,3,4
     assert out.x_v_std.max() < 1000.
+
+
+# --- serving an upcoming week ----------------------------------------------------------
+
+def test_an_upcoming_week_gets_lagged_features_even_with_no_box_score():
+    """The bug this guards: features were built from the stats table, so a game that had not
+    been played had no row at all and the model silently did nothing."""
+    from app.player_features import add_upcoming
+    played = weekly_stats([5., 7., 9.])
+    extended = add_upcoming(played, ['player_id', 'position', 'team', 'opponent_team'], 2025, 4,
+                            [('p1', 'WR', 'SEA', 'SF')], extra={'season_type': 'REG'})
+    assert len(extended) == len(played) + 1
+    lagged = player_usage(extended).sort_values('week')
+    future = lagged.iloc[-1]
+    assert future.week == 4
+    assert future.use_targets_last1 == 9., 'the upcoming week sees the last completed week'
+    assert future.use_targets_last3 == pytest.approx(7.), 'mean of 5, 7, 9'
+
+
+def test_the_appended_upcoming_row_contributes_nothing_to_history():
+    from app.player_features import add_upcoming
+    played = weekly_stats([5., 7., 9.])
+    base = player_usage(played).sort_values('week').reset_index(drop=True)
+    extended = player_usage(add_upcoming(played, ['player_id', 'position', 'team', 'opponent_team'], 2025, 4,
+                                         [('p1', 'WR', 'SEA', 'SF')], extra={'season_type': 'REG'}))
+    extended = extended.sort_values('week').reset_index(drop=True)
+    columns = [c for c in base.columns if c.startswith('use_')]
+    pd.testing.assert_frame_equal(base[columns], extended[columns].iloc[:len(base)], check_dtype=False)
+
+
+def test_add_upcoming_does_not_duplicate_a_week_that_exists():
+    from app.player_features import add_upcoming
+    played = weekly_stats([5., 7., 9.])
+    same = add_upcoming(played, ['player_id', 'position', 'team', 'opponent_team'], 2025, 3,
+                        [('p1', 'WR', 'SEA', 'SF')], extra={'season_type': 'REG'})
+    assert len(same) == len(played), 'week 3 already has a row; it must not be duplicated'
+
+
+def test_team_and_red_zone_aggregates_extend_to_an_upcoming_week():
+    from app.player_features import team_pass_features, red_zone_features
+    upcoming = {'season': 2025, 'week': 4,
+                'players': pd.DataFrame([{'player_id': 'p1', 'team': 'SEA', 'opponent': 'SF'}])}
+    team = team_pass_features(pbp_rows([5, 5, 5]), upcoming).sort_values('week')
+    assert int(team.iloc[-1].week) == 4
+    assert team.iloc[-1]['off_team_plays_last1'] == 5., 'upcoming week inherits the last played week'
+    rz = red_zone_features(pbp_rows([2, 3, 4]), upcoming).sort_values('week')
+    assert int(rz.iloc[-1].week) == 4
+    assert rz.iloc[-1]['rz_rz_targets_20_last1'] == 4.
