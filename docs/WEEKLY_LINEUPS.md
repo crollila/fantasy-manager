@@ -37,6 +37,24 @@ Version 0.4 uses opponent-adjusted positional defense, league scoring, recent us
 
 Weekly blending can learn from archived completed forecasts. Shared game/team simulation factors and a matchup win objective are available. Known current points plus clock-scaled remaining production are used when live clock data exist. These intervals and participation estimates remain provisional.
 
+## Weekly learned correction
+
+Every player forecast saved before kickoff is graded once its game finishes. A ridge correction is
+refit from those graded misses on **every** weekly run and applied immediately — there is no
+held-out promotion test, unlike the game correction in [GAME_LEARNING.md](GAME_LEARNING.md).
+
+It stays honest about its own record by construction: it can only train on games that have already
+finished, and is only ever applied to games that have not started, so no forecast in the accuracy
+record was influenced by its own result.
+
+Two things bound it. Its size is shrunk toward zero by how many forecasts that position has graded
+(half strength at 150), so early weeks barely move a projection. And the applied change is capped at
+25% of the projection or 4 fantasy points, whichever is smaller. A position with no graded history is
+left untouched. The applied value is stored with the forecast as `learned_correction`.
+
+Because it is ungated, it can chase noise as readily as signal. The graded record in the Accuracy tab
+is the only evidence of whether it helps; watch player MAE there against the ESPN comparison.
+
 See [the full model, source, update and accuracy documentation](INTELLIGENCE.md) for current behavior and limitations. That document supersedes the earlier version 0.2 modeling assumptions.
 
 ## API

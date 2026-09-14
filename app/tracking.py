@@ -116,7 +116,7 @@ def save_players(store,league,advice):
         for p in rows:
             game=p.get('game',{});when=game.get('kickoff');gid=game.get('game_id')
             if not when or not gid or stamp>=date(when):continue
-            data={k:p.get(k) for k in ('name','position','mean','points_if_active','espn_projection','independent_projection','p10','p90','boom','bust','boom_threshold','bust_threshold','play_probability','injury_status','context','weights','scoring')}
+            data={k:p.get(k) for k in ('name','position','mean','points_if_active','espn_projection','independent_projection','p10','p90','boom','bust','boom_threshold','bust_threshold','play_probability','learned_correction','injury_status','context','weights','scoring')}
             data['scoring']=p.get('scoring',league.scoring);data['bonuses']=[b.model_dump() for b in league.bonuses];data['season']=league.season;data['week']=advice['week'];data['model_version']='0.4.0-context-1'
             previous=c.execute('SELECT body FROM player_forecasts WHERE league_id=? AND player_id=? AND game_id=? ORDER BY id DESC LIMIT 1',(league.id,p['id'],gid)).fetchone()
             if previous:
@@ -148,7 +148,7 @@ def settle_players(store,stats,players,completed_games):
             actual['fumbles_lost']=sum(actual.get(k,0) for k in ('rushing_fumbles_lost','receiving_fumbles_lost','sack_fumbles_lost'))
             actual['two_point_conversions']=sum(actual.get(k,0) for k in ('passing_2pt_conversions','rushing_2pt_conversions','receiving_2pt_conversions'))
             league=League(id='evaluation',name='Evaluation',scoring=scoring,bonuses=[Bonus(**b) for b in body.get('bonuses',[])])
-            result={'forecast_id':r['id'],'player_id':r['player_id'],'position':body['position'],'actual':score_week(actual,league),'forecast':body['mean'],'espn':body.get('espn_projection'),'independent':body.get('independent_projection'),'p10':body['p10'],'p90':body['p90'],'saved_at':r['created_at']}
+            result={'forecast_id':r['id'],'player_id':r['player_id'],'position':body['position'],'actual':score_week(actual,league),'forecast':body['mean'],'espn':body.get('espn_projection'),'independent':body.get('independent_projection'),'p10':body['p10'],'p90':body['p90'],'saved_at':r['created_at'],'play_probability':body.get('play_probability'),'independent_weight':(body.get('weights') or {}).get('independent'),'learned_correction':body.get('learned_correction')}
             for event,comparison in [('boom',lambda a,t:a>t),('bust',lambda a,t:a<t)]:
                 if body.get(event) is not None and body.get(event+'_threshold') is not None:
                     result[event+'_brier']=(body[event]-int(comparison(result['actual'],body[event+'_threshold'])))**2

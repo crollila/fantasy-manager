@@ -462,8 +462,10 @@ def weekly_lineup(league_id:str,body:LineupRequest):
             pass  # weekly report explicitly marks missing recent usage
     from app.intelligence import weekly_context
     from app.tracking import blend_weight,save_players
+    from app.player_learning import fit_correction
     context_data=weekly_context(store,league,body.week)
     context_data['blend_weights']={pos:blend_weight(store,pos)[0] for pos in ('QB','RB','WR','TE','K','DST')}
+    context_data['player_correction']=fit_correction(store)
     opponent=meta.get('opponents',{}).get(str(league.my_team))
     opponent_ids=[p.player_id for p in owned if opponent is not None and p.team==opponent]
     advice=lineup_advice(players,league,ids,meta,health,body.week,body.risk,context=context_data,opponent_ids=opponent_ids)

@@ -14,6 +14,7 @@ from app.injuries import injury_report
 from app.tracking import initialize,saved_games,save_game,settle_games,settle_players,dashboard
 from app.game_evidence import observations,fit_expectations,expectations
 from app.game_learning import update_learning,apply_learning,archive_artifact,artifact,diagnostics,dashboard as learning_dashboard
+from app.player_learning import fit_correction as fit_player_correction, summary as player_correction_summary
 
 _lock=threading.Lock()
 
@@ -40,7 +41,7 @@ def state(store):
     with store.connect() as c:results=[json.loads(r[0]) for r in c.execute('SELECT body FROM game_results')]
     from app.game_benchmarks import comparison
     forecasts=saved_games(store)
-    return report|{'refresh':get_meta(store,'intelligence-status',{'state':'not_started'}),'accuracy':accuracy,'learning':learning_dashboard(store),'diagnostics':diagnostics(forecasts,results),'external_comparisons':comparison(forecasts,results)}
+    return report|{'refresh':get_meta(store,'intelligence-status',{'state':'not_started'}),'accuracy':accuracy,'learning':learning_dashboard(store),'player_learning':player_learning_summary(store),'diagnostics':diagnostics(forecasts,results),'external_comparisons':comparison(forecasts,results)}
 
 
 def refresh_intelligence(store,season=None,cache_path=None):
@@ -159,3 +160,8 @@ def weekly_context(store,league,week):
         by_position={pos:player_scoring(league,Player(id='scoring',name='Scoring',position=pos),metadata,{})[0].scoring for pos in ('QB','RB','WR','TE','K')}
         report.setdefault('league_matchups',{})[league.id]=fit_matchups(stats,games,datetime.now(timezone.utc),league.scoring,by_position)
     return report
+
+
+def player_learning_summary(store):
+    """Current state of the weekly player projection correction (fit fresh, never cached)."""
+    return player_correction_summary(fit_player_correction(store))

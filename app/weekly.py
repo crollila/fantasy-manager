@@ -109,6 +109,12 @@ def project_week(player,league,week,provider,injury,source_health,cache_path=DAT
     likely=participation_evidence['likely']
     bye=player.bye==week
     if bye:playing=0;likely=False
+    # Learned from graded pregame forecasts of finished games only; applied to a game not yet played.
+    from app.player_learning import adjustment as learned_adjustment
+    correction=learned_adjustment(context.get('player_correction'),player.position,center,playing,weights['independent'])
+    if correction:
+        center=max(0.,center+correction)
+        warnings.append(f'Learned weekly correction {correction:+.2f} points from graded forecasts')
     workload=rng.lognormal(-.5*player.workload_cv**2,player.workload_cv,draws)
     efficiency=rng.lognormal(-.5*player.efficiency_cv**2,player.efficiency_cv,draws)
     weekly=rng.lognormal(-.5*.5**2,.5,draws)
@@ -131,7 +137,7 @@ def project_week(player,league,week,provider,injury,source_health,cache_path=DAT
             warnings.append('Live clock unavailable: only banked points are shown; remaining projection unavailable')
 
     q=np.quantile(samples,[.1,.25,.5,.75,.9]);mean=float(np.mean(samples))
-    row={'id':player.id,'name':player.name,'position':player.position,'team':player.team,'mean':mean,'median':float(q[2]),'p10':float(q[0]),'p25':float(q[1]),'p75':float(q[3]),'p90':float(q[4]),'boom_threshold':max(1,center)*1.5,'bust_threshold':max(1,center)*.6,'boom':float(np.mean(samples>max(1,center)*1.5)),'bust':float(np.mean(samples<max(1,center)*.6)),'scoring':league.scoring,'independent_projection':baseline,'espn_projection':espn,'weights':weights,'injury_status':status,'play_probability':playing,'likely_to_play':likely,'points_if_active':points_if_active,'participation_weighted_points':points_if_active*playing,'participation_evidence':participation_evidence,'context':{'matchup':adjustment,'play_calling':calling,'replacement':replacement,'weather':weather,'advanced_usage':context.get('play_calling',{}).get('players',{}).get(player.ids.get('gsis',player.id),{})},'injury':injury,'bye':bye,'locked':locked,'eligible_slots':provider.get('eligible_slots',[]),'current_slot':provider.get('slot'),'game':game,'usage':usage,'usage_evidence':evidence,'warnings':warnings,'confidence':'limited' if warnings or status not in ('ACTIVE','NORMAL','HEALTHY') else 'moderate'}
+    row={'id':player.id,'name':player.name,'position':player.position,'team':player.team,'mean':mean,'median':float(q[2]),'p10':float(q[0]),'p25':float(q[1]),'p75':float(q[3]),'p90':float(q[4]),'boom_threshold':max(1,center)*1.5,'bust_threshold':max(1,center)*.6,'boom':float(np.mean(samples>max(1,center)*1.5)),'bust':float(np.mean(samples<max(1,center)*.6)),'scoring':league.scoring,'independent_projection':baseline,'espn_projection':espn,'weights':weights,'injury_status':status,'play_probability':playing,'likely_to_play':likely,'learned_correction':correction,'points_if_active':points_if_active,'participation_weighted_points':points_if_active*playing,'participation_evidence':participation_evidence,'context':{'matchup':adjustment,'play_calling':calling,'replacement':replacement,'weather':weather,'advanced_usage':context.get('play_calling',{}).get('players',{}).get(player.ids.get('gsis',player.id),{})},'injury':injury,'bye':bye,'locked':locked,'eligible_slots':provider.get('eligible_slots',[]),'current_slot':provider.get('slot'),'game':game,'usage':usage,'usage_evidence':evidence,'warnings':warnings,'confidence':'limited' if warnings or status not in ('ACTIVE','NORMAL','HEALTHY') else 'moderate'}
     return row,samples
 
 def choose_lineup(rows,samples,league,risk,current,utilities=None):
