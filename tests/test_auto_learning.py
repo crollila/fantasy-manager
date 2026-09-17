@@ -309,3 +309,24 @@ def test_an_unfinished_game_contributes_nothing_to_training(tmp_path):
     stats = pd.DataFrame([{'game_id': 'g-live', 'player_id': f'p{i}', 'rushing_yards': 140.} for i in range(40)])
     settle_players(store, stats, [Player(id=f'p{i}', name='P', position='RB') for i in range(40)], completed_games=set())
     assert fit_correction(store) is None, 'a game that has not finished can never become training data'
+
+
+def test_diagnostics_tolerates_engine_component_notes():
+    """Engine forecasts store a text note beside the home/away components."""
+    from app.game_learning import diagnostics
+    forecast = {'game_id': 'g', 'home_win_probability': .6, 'away_win_probability': .4,
+                'components': {'home': {'inputs': {'rest': 0}}, 'away': {'inputs': {'rest': -1}}, 'note': 'text'}}
+    result = {'game_id': 'g', 'home_score': 20, 'away_score': 10, 'score_mae': 3., 'total_error': 1., 'margin_error': 2., 'winner_result': 'win'}
+    out = diagnostics({'g': forecast}, [result])
+    assert any(c['condition'] == 'Rest disadvantage 3+ days' for c in out['conditions'])
+
+
+def test_player_accuracy_counts_each_player_once_and_compares_espn():
+    from app.tracking import player_accuracy
+    rows = [{'forecast_id': 1, 'league_id': '__all_players__', 'player_id': 'a', 'season': 2026, 'week': 1, 'position': 'WR', 'name': 'A', 'forecast': 10., 'actual': 14., 'espn': 16.},
+            {'forecast_id': 2, 'league_id': 'L', 'player_id': 'a', 'season': 2026, 'week': 1, 'position': 'WR', 'name': 'A', 'forecast': 30., 'actual': 14., 'espn': 30.},
+            {'forecast_id': 3, 'league_id': '__all_players__', 'player_id': 'b', 'season': 2026, 'week': 1, 'position': 'RB', 'name': 'B', 'forecast': 8., 'actual': 6., 'espn': None}]
+    out = player_accuracy(rows)
+    assert out['players_graded'] == 2 and out['overall_mae'] == 3.
+    assert out['espn_compared'] == 1 and out['model_mae_vs_espn'] == 4. and out['espn_mae_same_players'] == 2.
+    assert [g['position'] for g in out['by_position']] == ['RB', 'WR']

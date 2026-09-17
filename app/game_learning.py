@@ -290,7 +290,7 @@ def diagnostics(forecasts, results):
             if number(weather.get('temperature_f'), 60) < 40: labels.append('Below 40°F')
             if number(weather.get('precipitation_mm')) > .1: labels.append('Rain / snow forecast')
         if any(p.get('likely') is False for ps in f.get('personnel_snapshot', {}).values() for p in ps): labels.append('Starter absence expected')
-        if any(c.get('inputs', {}).get('rest', 0) <= -3/7 for c in f.get('components', {}).values()): labels.append('Rest disadvantage 3+ days')
+        if any(c.get('inputs', {}).get('rest', 0) <= -3/7 for c in f.get('components', {}).values() if isinstance(c, dict)): labels.append('Rest disadvantage 3+ days')
         for label in labels: conditions[label].append(r)
     reliability = [{'lower': b/5, 'upper': (b+1)/5, 'games': len(rows), 'predicted': float(np.mean([p for p, _ in rows])), 'actual': float(np.mean([y for _, y in rows]))} for b, rows in sorted(bins.items())]
     from app.tracking import rates

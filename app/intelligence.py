@@ -57,6 +57,9 @@ def refresh_intelligence(store,season=None,cache_path=None):
         schedule=enrich_weather(read_frame(cache_path/'schedules.parquet'),cache_path,season)
         if schedule.empty:raise ValueError('No usable NFL schedule; saved forecasts remain available')
         week=current_week(schedule,season,as_of)
+        progress('Completing the player catalog')
+        from app.player_archive import ensure_catalog,archive_leagues
+        catalog=ensure_catalog(store,season,week,cache_path)
         progress('Checking official game status, injury reports and depth charts')
         from app.data import Cache
         with ThreadPoolExecutor(max_workers=3) as pool:
@@ -163,6 +166,7 @@ def refresh_intelligence(store,season=None,cache_path=None):
         from app.player_archive import archive_projections
         projection_context=report|{'player_correction':player_correction,'player_point_model':point_model,'player_model_features':point_features}
         archive=archive_projections(store,season,week,board,health,projection_context,cache_path,datetime.now(timezone.utc))
+        archive['catalog']=catalog;archive['leagues']=archive_leagues(store,season,week,health,projection_context,cache_path,datetime.now(timezone.utc))
         report['player_archive']=archive
         from app.player_model import summary as point_model_summary
         report['player_point_model']=point_model_summary(point_model)

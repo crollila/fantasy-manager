@@ -98,6 +98,37 @@ def rates(rows,field):
     return {'wins':wins,'losses':losses,'pushes_or_ties':pushes,'win_rate':wins/n if n else None,'decisions':n,'ci95':interval}
 
 
+def mae(rows,key='forecast'):
+    values=[abs(r['actual']-r[key]) for r in rows if r.get(key) is not None]
+    return float(np.mean(values)) if values else None
+
+
+def player_accuracy(rows):
+    """Projection error for finished games. One row per player-game for the headline numbers,
+    so a player archived both for all-player tracking and for a league is not counted twice."""
+    unique={}
+    for r in sorted(rows,key=lambda r:r.get('league_id')!='__all_players__'):
+        unique.setdefault((r['player_id'],r.get('season'),r.get('week'),r['forecast_id'] if r.get('week') is None else None),r)
+    unique=list(unique.values())
+    espn=[r for r in unique if r.get('espn') is not None]
+    def group(rows,key):
+        out=[]
+        for value in sorted({r.get(key) for r in rows if r.get(key) is not None},key=str):
+            part=[r for r in rows if r.get(key)==value];common=[r for r in part if r.get('espn') is not None]
+            out.append({key:value,'players':len(part),'mae':mae(part),'bias':float(np.mean([r['forecast']-r['actual'] for r in part])),'within_5':float(np.mean([abs(r['actual']-r['forecast'])<=5 for r in part])),'espn_players':len(common),'model_mae_vs_espn':mae(common),'espn_mae':mae(common,'espn')})
+        return out
+    errors=[abs(r['actual']-r['forecast']) for r in unique]
+    return {'players_graded':len(unique),'overall_mae':mae(unique),'median_error':float(np.median(errors)) if errors else None,
+            'rmse':float(np.sqrt(np.mean(np.square(errors)))) if errors else None,
+            'bias':float(np.mean([r['forecast']-r['actual'] for r in unique])) if unique else None,
+            'within_3':float(np.mean([e<=3 for e in errors])) if errors else None,'within_5':float(np.mean([e<=5 for e in errors])) if errors else None,
+            'espn_compared':len(espn),'model_mae_vs_espn':mae(espn),'espn_mae_same_players':mae(espn,'espn'),
+            'closer_than_espn':float(np.mean([abs(r['actual']-r['forecast'])<abs(r['actual']-r['espn']) for r in espn])) if espn else None,
+            'by_position':group(unique,'position'),'by_week':group(unique,'week'),
+            'biggest_misses':[{k:r.get(k) for k in ('name','position','week','forecast','actual','espn')} for r in sorted(unique,key=lambda r:-abs(r['actual']-r['forecast']))[:15]],
+            'closest':[{k:r.get(k) for k in ('name','position','week','forecast','actual','espn')} for r in sorted(unique,key=lambda r:abs(r['actual']-r['forecast']))[:15]]}
+
+
 def dashboard(store):
     initialize(store)
     with store.connect() as c:
@@ -107,7 +138,7 @@ def dashboard(store):
     common=[r for r in rows if r.get('market_favorite_result')]
     common_players=[r for r in player_rows if r.get('espn') is not None]
     paper={k:{'picks':len(v),'units':sum(v),'roi':sum(v)/len(v) if v else None} for k in ('ats','total') for v in [[r.get('paper_profit',{})[k] for r in rows if k in r.get('paper_profit',{})]]}
-    return {'paper_results':paper,'straight_up':rates(rows,'winner_result'),'against_spread':rates(rows,'ats_result'),'totals':rates(rows,'total_result'),'market_common_games':{'model':rates(common,'winner_result'),'market_favorite':rates(common,'market_favorite_result')},'score_mae':float(np.mean([r['score_mae'] for r in rows])) if rows else None,'brier_score':float(np.mean([r['brier'] for r in rows])) if rows else None,'brier_definition':'Three-outcome home/away/tie Brier score; lower is better','games_graded':len(rows),'forecast_versions_saved':count,'results':rows[:300],'by_model_version':{v:rates([r for r in rows if r['model_version']==v],'winner_result') for v in {r['model_version'] for r in rows}},'players':{**{event+'_brier':float(np.mean([r[event+'_brier'] for r in player_rows if event+'_brier' in r])) if any(event+'_brier' in r for r in player_rows) else None for event in ('boom','bust')},'graded':len(player_rows),'common_espn_games':len(common_players),'common_model_mae':float(np.mean([abs(r['actual']-r['forecast']) for r in common_players])) if common_players else None,'mae':float(np.mean([abs(r['actual']-r['forecast']) for r in player_rows])) if player_rows else None,'espn_mae':float(np.mean([abs(r['actual']-r['espn']) for r in player_rows if r.get('espn') is not None])) if any(r.get('espn') is not None for r in player_rows) else None,'range_coverage':float(np.mean([r['p10']<=r['actual']<=r['p90'] for r in player_rows])) if player_rows else None},'note':'Only saved pre-kickoff forecasts count. W/L excludes ties and pushes. No bets are placed; accuracy is not evidence of profitability.'}
+    return {'paper_results':paper,'straight_up':rates(rows,'winner_result'),'against_spread':rates(rows,'ats_result'),'totals':rates(rows,'total_result'),'market_common_games':{'model':rates(common,'winner_result'),'market_favorite':rates(common,'market_favorite_result')},'score_mae':float(np.mean([r['score_mae'] for r in rows])) if rows else None,'brier_score':float(np.mean([r['brier'] for r in rows])) if rows else None,'brier_definition':'Three-outcome home/away/tie Brier score; lower is better','games_graded':len(rows),'forecast_versions_saved':count,'results':rows[:300],'by_model_version':{v:rates([r for r in rows if r['model_version']==v],'winner_result') for v in {r['model_version'] for r in rows}},'players':player_accuracy(player_rows)|{**{event+'_brier':float(np.mean([r[event+'_brier'] for r in player_rows if event+'_brier' in r])) if any(event+'_brier' in r for r in player_rows) else None for event in ('boom','bust')},'graded':len(player_rows),'common_espn_games':len(common_players),'common_model_mae':float(np.mean([abs(r['actual']-r['forecast']) for r in common_players])) if common_players else None,'mae':float(np.mean([abs(r['actual']-r['forecast']) for r in player_rows])) if player_rows else None,'espn_mae':float(np.mean([abs(r['actual']-r['espn']) for r in player_rows if r.get('espn') is not None])) if any(r.get('espn') is not None for r in player_rows) else None,'range_coverage':float(np.mean([r['p10']<=r['actual']<=r['p90'] for r in player_rows])) if player_rows else None},'note':'Only saved pre-kickoff forecasts count. W/L excludes ties and pushes. No bets are placed; accuracy is not evidence of profitability.'}
 
 
 PROJECTION_FIELDS=('name','position','mean','points_if_active','espn_projection','independent_projection','p10','p90','boom','bust','boom_threshold','bust_threshold','play_probability','learned_correction','learned_point_model','injury_status','context','weights','scoring')
@@ -194,7 +225,7 @@ def settle_players(store,stats,players,completed_games):
             actual['fumbles_lost']=sum(actual.get(k,0) for k in ('rushing_fumbles_lost','receiving_fumbles_lost','sack_fumbles_lost'))
             actual['two_point_conversions']=sum(actual.get(k,0) for k in ('passing_2pt_conversions','rushing_2pt_conversions','receiving_2pt_conversions'))
             league=League(id='evaluation',name='Evaluation',scoring=scoring,bonuses=[Bonus(**b) for b in body.get('bonuses',[])])
-            result={'forecast_id':r['id'],'player_id':r['player_id'],'position':body['position'],'actual':score_week(actual,league),'forecast':body['mean'],'espn':body.get('espn_projection'),'independent':body.get('independent_projection'),'p10':body['p10'],'p90':body['p90'],'saved_at':r['created_at'],'play_probability':body.get('play_probability'),'independent_weight':(body.get('weights') or {}).get('independent'),'learned_correction':body.get('learned_correction')}
+            result={'forecast_id':r['id'],'player_id':r['player_id'],'league_id':r['league_id'],'name':body.get('name'),'season':body.get('season'),'week':body.get('week'),'position':body['position'],'actual':score_week(actual,league),'forecast':body['mean'],'espn':body.get('espn_projection'),'independent':body.get('independent_projection'),'p10':body['p10'],'p90':body['p90'],'saved_at':r['created_at'],'play_probability':body.get('play_probability'),'independent_weight':(body.get('weights') or {}).get('independent'),'learned_correction':body.get('learned_correction')}
             for event,comparison in [('boom',lambda a,t:a>t),('bust',lambda a,t:a<t)]:
                 if body.get(event) is not None and body.get(event+'_threshold') is not None:
                     result[event+'_brier']=(body[event]-int(comparison(result['actual'],body[event+'_threshold'])))**2

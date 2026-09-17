@@ -419,10 +419,25 @@ class ESPNSyncRequest(Strict):
     week:int = Field(default=1,ge=1,le=18)
 
 
+def archive_synced_league(league_id,week):
+    """A fresh ESPN snapshot carries ESPN's projections: archive them beside ours before kickoff."""
+    if os.environ.get('FANTASY_DISABLE_AUTO_REFRESH')=='1':return
+    def work():
+        from app.player_archive import archive_leagues,attach_espn
+        from app.injuries import injury_report
+        league=store.league(league_id)
+        result=archive_leagues(store,league.season,week,injury_report(),None,only=league_id)
+        return result|{'espn_attached':attach_espn(store,league.season,week)}
+    try:submit('league-archive',work,league_id)
+    except ValueError:pass  # queue full: the next refresh archives this league instead
+
+
 @app.post("/api/espn/sync")
 def sync_public(body:ESPNSyncRequest):
     from app.league_sync import fetch_public,save_snapshot
-    return save_snapshot(store,fetch_public(body.league_id,body.season,body.week),body.my_team_id,body.season,body.week)
+    result=save_snapshot(store,fetch_public(body.league_id,body.season,body.week),body.my_team_id,body.season,body.week)
+    archive_synced_league(body.league_id,body.week)
+    return result
 
 
 class ESPNImportRequest(ESPNSyncRequest):
@@ -437,6 +452,7 @@ def import_espn(request_body:ESPNImportRequest):
     if str(body.get('snapshot',{}).get('id'))!=config.league_id:
         raise ValueError('Snapshot and requested league differ')
     result=save_snapshot(store,body['snapshot'],config.my_team_id,config.season,config.week)
+    archive_synced_league(config.league_id,config.week)
     save_connection(ConnectionRequest(url=f'https://fantasy.espn.com/football/team?leagueId={config.league_id}&teamId={config.my_team_id}&seasonId={config.season}',name=result['league']['team_names'][result['league']['my_team']]))
     return result
 
@@ -466,25 +482,50 @@ def weekly_lineup(league_id:str,body:LineupRequest):
             Cache().fetch(f'stats_{league.season}.parquet',f'{BASE}/stats_player/stats_player_week_{league.season}.parquet',ttl=3600)
         except Exception:
             pass  # weekly report explicitly marks missing recent usage
-    from app.intelligence import weekly_context
-    from app.tracking import blend_weight,save_players
-    from app.player_learning import fit_correction
-    context_data=weekly_context(store,league,body.week)
-    context_data['blend_weights']={pos:blend_weight(store,pos)[0] for pos in ('QB','RB','WR','TE','K','DST')}
-    context_data['player_correction']=fit_correction(store)
-    from app.player_model import cached_fit as fit_point_model, current_features
-    try:
-        context_data['player_point_model']=fit_point_model()
-        from app.player_model import upcoming_players
-        _board=weekly_context(store,league,body.week).get('games') or context_data.get('games') or []
-        context_data['player_model_features']=current_features(league.season,body.week,None,upcoming_players(store,league.season,_board)) if context_data['player_point_model'] else None
-    except Exception:
-        context_data['player_point_model']=None;context_data['player_model_features']=None
+    from app.tracking import save_players
+    from app.player_archive import projection_context
+    context_data=projection_context(store,league,body.week)
     opponent=meta.get('opponents',{}).get(str(league.my_team))
     opponent_ids=[p.player_id for p in owned if opponent is not None and p.team==opponent]
     advice=lineup_advice(players,league,ids,meta,health,body.week,body.risk,context=context_data,opponent_ids=opponent_ids)
     save_players(store,league,advice)
+    # Held until the next analysis replaces it, so switching teams or restarting never loses it.
+    from app.intelligence import set_meta
+    set_meta(store,f'lineup-advice:{league_id}',advice)
     return advice
+
+
+@app.get("/api/leagues/{league_id}/lineup")
+def saved_lineup(league_id:str):
+    from app.intelligence import get_meta
+    store.league(league_id)
+    return get_meta(store,f'lineup-advice:{league_id}')
+
+
+@app.get("/api/projections")
+def all_projections():
+    """The latest archived projection for every player in the current week, with results once graded."""
+    from app.intelligence import get_meta
+    from app.tracking import initialize
+    from app.player_archive import ARCHIVE_LEAGUE
+    report=get_meta(store,'intelligence-report',{})
+    season,week=report.get('season'),report.get('week')
+    initialize(store);latest={}
+    with store.connect() as c:
+        rows=c.execute('SELECT id,league_id,player_id,created_at,kickoff,body FROM player_forecasts WHERE league_id=? ORDER BY id',(ARCHIVE_LEAGUE,)).fetchall()
+        results={r[0]:json.loads(r[1]) for r in c.execute('SELECT forecast_id,body FROM player_results')}
+    teams={p.id:p.team for p in store.players(season)} if season else {}
+    for r in rows:
+        body=json.loads(r['body'])
+        if body.get('season')!=season or body.get('week')!=week:continue
+        if r['league_id']==ARCHIVE_LEAGUE:latest[r['player_id']]=(r,body)
+    players=[]
+    for pid,(r,body) in latest.items():
+        graded=results.get(r['id'])
+        opponent=((body.get('context') or {}).get('matchup') or {}).get('opponent')
+        players.append({'id':pid,'name':body['name'],'position':body['position'],'team':teams.get(pid),'opponent':opponent,'mean':body['mean'],'p10':body['p10'],'p90':body['p90'],'boom':body.get('boom'),'bust':body.get('bust'),'play_probability':body.get('play_probability'),'injury_status':body.get('injury_status'),'espn_projection':body.get('espn_projection'),'kickoff':r['kickoff'],'saved_at':r['created_at'],'actual':graded['actual'] if graded else None})
+    players.sort(key=lambda p:-p['mean'])
+    return {'season':season,'week':week,'scoring':'Default PPR scoring, so every player is comparable. Your team view uses your league rules.','players':players}
 
 
 
