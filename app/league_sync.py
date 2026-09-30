@@ -87,7 +87,9 @@ def normalize(payload,my_team_id,season,week,existing):
     return league,list(players.values()),rosters,meta
 
 def save_snapshot(store,payload,my_team_id,season,week):
-    league,players,rosters,meta=normalize(payload,my_team_id,season,week,store.players(season))
+    # Repair any duplicate catalog entries first: one conflict would otherwise reject every import.
+    from app.identity import merge_duplicates,referenced_ids
+    league,players,rosters,meta=normalize(payload,my_team_id,season,week,merge_duplicates(store.players(season),referenced_ids(store)))
     # All writes are one transaction: failed snapshot validation never partially updates a league.
     from app.identity import Identity
     Identity(players)

@@ -138,7 +138,8 @@ def project_week(player,league,week,provider,injury,source_health,cache_path=DAT
         from app.player_model import ratio as model_ratio, control_points
         rows=context.get('player_model_features')
         key=player.ids.get('gsis',player.id)
-        features=rows.loc[key].to_dict() if rows is not None and key in getattr(rows,'index',()) else None
+        from app.player_model import feature_row
+        features=feature_row(rows,key)
         factor,model_note=model_ratio(bundle,features,player.position,control_points(features))
         if factor!=1.:
             center=max(0.,center*factor)
@@ -205,6 +206,7 @@ def lineup_advice(players,league,roster_ids,meta,health,week,risk='balanced',cac
     if meta and (meta.get('week')!=week or meta.get('season')!=league.season):raise ValueError('Synced ESPN snapshot is for a different week/season. Re-sync first.')
     by_id={p.id:p for p in players};rows=[];samples=[];missing=[]
     for pid in roster_ids:
+        if pid not in by_id:missing.append(pid);continue   # dropped from the catalog; re-sync repairs it
         player=by_id[pid];provider=meta.get('weekly',{}).get(pid,{}).copy()
         from app.scoring_support import player_scoring
         scoring_league,incomplete=player_scoring(league,player,meta,provider)

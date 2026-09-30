@@ -39,7 +39,10 @@ async function start(){
  const port=await freePort();base=`http://127.0.0.1:${port}`;
  const executable=app.isPackaged?path.join(process.resourcesPath,'backend','FantasyBackend.exe'):path.join(__dirname,'..','.venv','Scripts','python.exe');
  const args=app.isPackaged?[]:[path.join(__dirname,'backend.py')];
- const log=fs.openSync(path.join(dataDir,'desktop.log'),'a');
+ const logPath=path.join(dataDir,'desktop.log');
+ // Keep one previous log; the engine appends on every start.
+ try{if(fs.statSync(logPath).size>5*1024*1024)fs.renameSync(logPath,logPath+'.1');}catch{}
+ const log=fs.openSync(logPath,'a');
  backend=spawn(executable,args,{cwd:app.isPackaged?path.dirname(executable):path.join(__dirname,'..'),env:{...process.env,FANTASY_DATA_DIR:dataDir,FANTASY_PORT:String(port),FANTASY_INSTANCE:nonce,PYTHONPATH:app.isPackaged?'':path.join(__dirname,'..')},windowsHide:true,stdio:['ignore',log,log]});
  fs.closeSync(log);
  let spawnError;backend.on('error',e=>{spawnError=e;});

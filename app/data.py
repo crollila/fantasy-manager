@@ -12,6 +12,23 @@ from app.storage import DATA, now
 BASE = "https://github.com/nflverse/nflverse-data/releases/download"
 
 
+def content_stamp(path):
+    """What a cached file contains, from its retrieval hash when recorded (re-downloading an
+    unchanged file keeps the stamp), else its modification time and size."""
+    path = Path(path)
+    try:
+        meta = json.loads(path.with_suffix(path.suffix + ".json").read_text())
+        if meta.get("sha256"):
+            return meta["sha256"]
+    except (OSError, ValueError):
+        pass
+    try:
+        info = path.stat()
+        return f"{info.st_mtime_ns}:{info.st_size}"
+    except OSError:
+        return None
+
+
 class Cache:
     def __init__(self, path=DATA / "cache"):
         self.path = Path(path)

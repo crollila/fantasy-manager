@@ -95,20 +95,33 @@ def expanding_lagged(frame, keys, order, columns, prefix):
 
     The frame is shifted by one row within each key *before* any window is taken, which is
     the single guarantee that a row never sees its own outcome.
+
+    Windows run on an integer group code with pandas' grouped rolling/ewm kernels rather than
+    a Python lambda per group, which made this the slowest step of every refresh. Rows with a
+    missing key belong to no group and get no history, as with a plain groupby.
     """
     frame = frame.sort_values(list(keys) + list(order)).copy()
-    grouped = frame.groupby(keys, sort=False)
+    codes = frame.groupby(list(keys), sort=False).ngroup().to_numpy()
+    valid = codes >= 0
+    positions = pd.RangeIndex(len(frame))
+    group = pd.Series(codes, index=positions)[valid]
     out = {}
+
+    def windowed(series):
+        # Grouped window results come back indexed (group, position); restore row order.
+        return series.droplevel(0).reindex(positions)
+
     for col in columns:
         if col not in frame:
             continue
-        shifted = grouped[col].shift(1)
-        by = shifted.groupby([frame[k] for k in keys], sort=False)
-        out[f'{prefix}{col}_last1'] = shifted
+        values = pd.Series(pd.to_numeric(frame[col], errors='coerce').to_numpy(dtype=float, na_value=np.nan), index=positions)[valid]
+        shifted = values.groupby(group, sort=False).shift(1)
+        by = shifted.groupby(group, sort=False)
+        out[f'{prefix}{col}_last1'] = shifted.reindex(positions).to_numpy()
         for h in HORIZONS[1:]:
-            out[f'{prefix}{col}_last{h}'] = by.transform(lambda s, h=h: s.rolling(h, min_periods=1).mean())
-        out[f'{prefix}{col}_std'] = by.transform(lambda s: s.expanding().mean())
-        out[f'{prefix}{col}_ewm'] = by.transform(lambda s: s.ewm(alpha=1 - DECAY, adjust=False).mean())
+            out[f'{prefix}{col}_last{h}'] = windowed(by.rolling(h, min_periods=1).mean()).to_numpy()
+        out[f'{prefix}{col}_std'] = windowed(by.expanding().mean()).to_numpy()
+        out[f'{prefix}{col}_ewm'] = windowed(by.ewm(alpha=1 - DECAY, adjust=False).mean()).to_numpy()
     result = pd.DataFrame(out, index=frame.index)
     for col in list(keys) + list(order):
         result[col] = frame[col]

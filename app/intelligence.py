@@ -9,7 +9,7 @@ from app.storage import DATA,now
 from app.research_sources import refresh_inputs,read_frame,scoreboard,weather_for,depth_charts
 from app.game_model import train_games,game_prediction,kickoff,number,label_pick
 from app.context_models import completed_stats,fit_matchups,play_calling,enrich_weather
-from app.roster_context import replacement_study,current_rosters
+from app.roster_context import cached_replacement_study,current_rosters
 from app.injuries import injury_report
 from app.tracking import initialize,saved_games,save_game,settle_games,settle_players,dashboard
 from app.game_evidence import observations,fit_expectations,expectations
@@ -98,7 +98,7 @@ def refresh_intelligence(store,season=None,cache_path=None):
                 scoring_by_position={pos:player_scoring(league,Player(id='scoring',name='Scoring',position=pos),metadata,{})[0].scoring for pos in ('QB','RB','WR','TE','K')}
                 league_models[league.id]=fit_matchups(stats,historical_games,as_of,league.scoring,scoring_by_position)
         calling=play_calling(cache_path,season,as_of,historical_games)
-        study=replacement_study(cache_path,season,historical_games,stats)
+        study=cached_replacement_study(cache_path,season,historical_games,stats)
         rosters=current_rosters(depth,health,study,stats,cache_path,as_of,season)
         progress('Reviewing completed picks against team, player and Next Gen Stats evidence')
         # Revisit the weeks in which actual archived forecasts exist, including past seasons.

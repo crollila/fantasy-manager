@@ -51,25 +51,16 @@ def ensure_catalog(store, season, week, cache_path=None):
         skill = [p for p in existing if p.position in ('QB', 'RB', 'WR', 'TE')]
         covered = sum(bool(p.stats) for p in skill)
         built_for = get_meta(store, f'catalog-built:{season}')
-        if built_for == week and len(skill) >= 300 and covered >= .8*len(skill):
+        from app.identity import Identity, merge_catalog, referenced_ids
+        try:
+            Identity(existing); consistent = True
+        except ValueError:
+            consistent = False   # a duplicated player: rebuild now so the catalog is repaired
+        if consistent and built_for == week and len(skill) >= 300 and covered >= .8*len(skill):
             return {'status': 'current', 'players': len(existing)}
         from app.projections import build_catalog
         built = build_catalog(season, cache_path)
-        merged = {p.id: p for p in existing}
-        by_external = {(k, str(v)): p for p in existing for k, v in p.ids.items()}
-        for b in built:
-            target = merged.get(b.id) or next((by_external[(k, str(v))] for k, v in b.ids.items() if (k, str(v)) in by_external), None)
-            if target is None:
-                merged[b.id] = b
-                for k, v in b.ids.items(): by_external[(k, str(v))] = b
-                continue
-            if target.position != b.position: continue
-            for field in ('stats', 'games', 'workload_cv', 'efficiency_cv', 'bye', 'source', 'warnings'):
-                setattr(target, field, getattr(b, field))
-            target.ids = b.ids | target.ids
-            if b.team and b.team != 'FA': target.team = b.team
-        players = list(merged.values())
-        from app.identity import Identity
+        players = merge_catalog(existing, built, referenced_ids(store))
         Identity(players)
         store.save_players(season, players)
         set_meta(store, f'catalog-built:{season}', week)

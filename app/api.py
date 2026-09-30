@@ -85,17 +85,11 @@ def refresh(season):
 def refresh_locked(season):
     statuses = refresh_sources(season)
     players = build_catalog(season)
-    # Preserve explicit mappings and market data across refreshes.
-    old = {p.id:p for p in store.players(season)}
-    for p in players:
-        if p.id in old:
-            previous = old[p.id]
-            p.ids = previous.ids | p.ids
-            for field in ("adp","adp_sd","espn_rank","ecr","market_stats","market_weight"):
-                setattr(p,field,getattr(previous,field))
-    for p in old.values():
-        if p.position in ("K","DST") and p.id not in {q.id for q in players}:
-            players.append(p)
+    # Fold into the saved catalog: explicit mappings, market data and ESPN roster entries
+    # survive, and a player already known under another ID is never added twice.
+    from app.identity import Identity,merge_catalog,referenced_ids
+    players = merge_catalog(store.players(season),players,referenced_ids(store))
+    Identity(players)
     store.save_players(season,players)
     from app.news import refresh_news
     news=refresh_news()
@@ -109,6 +103,11 @@ async def lifespan(app):
         demo.season = 2099
         store.save_players(2099,demo_players())
         store.save_league(demo)
+    # A refresh cut short by closing the app leaves "running" saved; it is not running now.
+    from app.intelligence import get_meta,set_meta
+    status=get_meta(store,'intelligence-status',{})
+    if status.get('state')=='running':
+        set_meta(store,'intelligence-status',{'state':'interrupted','stage':'The last refresh was interrupted when the app closed; it restarts automatically.','updated_at':now()})
     async def scheduled():
         while True:
             await asyncio.sleep(6*3600)

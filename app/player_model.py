@@ -75,17 +75,21 @@ def fit(seasons=None, cache_path=None, as_of=None):
 _CACHE = {}
 
 
-def data_fingerprint(cache_path=None):
-    """Cheap stamp of the inputs, so a refit happens exactly when new results arrive."""
+def data_fingerprint(cache_path=None, patterns=('stats_*.parquet', 'snaps_*.parquet')):
+    """Cheap stamp of the inputs, so a refit happens exactly when new results arrive.
+
+    Uses each file's retrieval hash, so a scheduled re-download of unchanged data does not
+    trigger a pointless refit.
+    """
     from pathlib import Path
+    from app.data import content_stamp
     root = Path(cache_path or DATA/'cache')
-    parts = []
-    for path in sorted(root.glob('stats_*.parquet')) + sorted(root.glob('snaps_*.parquet')):
-        try:
-            parts.append((path.name, path.stat().st_mtime_ns, path.stat().st_size))
-        except OSError:
-            continue
-    return hash(tuple(parts))
+    paths = sorted(p for pattern in patterns for p in root.glob(pattern))
+    return hash(tuple((p.name, content_stamp(p)) for p in paths))
+
+
+# Pregame features also read play-by-play and the schedule (lines move during the week).
+FEATURE_INPUTS = ('stats_*.parquet', 'snaps_*.parquet', 'pbp_*.parquet', 'schedules.parquet')
 
 
 def cached_fit(cache_path=None, as_of=None, force=False):
@@ -101,7 +105,20 @@ def cached_fit(cache_path=None, as_of=None, force=False):
     return bundle
 
 
+_FEATURES = {}
+
+
 def current_features(season, week, cache_path=None, players=None):
+    """Cached per data version and player list: building takes ~25s, and every lineup request
+    and weekly refresh asks for the same rows."""
+    ids = tuple(sorted(players['player_id'].astype(str))) if players is not None and len(players) else ()
+    key = (season, week, str(cache_path or DATA/'cache'), data_fingerprint(cache_path, FEATURE_INPUTS), hash(ids))
+    if _FEATURES.get('key') != key:
+        _FEATURES.update(key=key, rows=_current_features(season, week, cache_path, players))
+    return _FEATURES['rows']
+
+
+def _current_features(season, week, cache_path=None, players=None):
     """Pregame-safe feature rows for the upcoming week, indexed by nflverse player id.
 
     The upcoming week has not been played, so it has no box score and would otherwise have no
@@ -115,7 +132,10 @@ def current_features(season, week, cache_path=None, players=None):
     if frame.empty:
         return pd.DataFrame()
     rows = frame[(frame.season == season) & (frame.week == week)]
-    return rows.set_index('player_id') if not rows.empty else pd.DataFrame()
+    if rows.empty:
+        return pd.DataFrame()
+    rows = rows.set_index('player_id')
+    return rows[~rows.index.duplicated(keep='last')]
 
 
 def upcoming_players(store, season, board):
@@ -153,6 +173,24 @@ def ratio(bundle, features, position, control):
                    'control_default_points': round(float(control), 2), 'ratio': round(value, 4)}
 
 
+def feature_row(rows, key):
+    """One player's feature row as a plain dict, or None. Tolerates a repeated player id."""
+    if rows is None or key not in getattr(rows, 'index', ()):
+        return None
+    row = rows.loc[key]
+    if isinstance(row, pd.DataFrame):   # the same player twice: use the latest row
+        row = row.iloc[-1]
+    return row.to_dict()
+
+
+def _number(value):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    return value if np.isfinite(value) else None
+
+
 def control_points(features):
     """The current method's default-scoring projection for this player-week."""
     from app.domain import DEFAULT_SCORING
@@ -160,9 +198,9 @@ def control_points(features):
         return None
     total = 0.
     for stat, weight in DEFAULT_SCORING.items():
-        value = features.get(f'use_{stat}_ewm')
-        if value is not None and np.isfinite(value):
-            total += float(value) * weight
+        value = _number(features.get(f'use_{stat}_ewm'))
+        if value is not None:
+            total += value * weight
     return total
 
 

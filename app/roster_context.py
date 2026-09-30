@@ -27,6 +27,26 @@ def id_maps(cache_path):
     return by_gsis,by_espn
 
 
+def cached_replacement_study(cache_path,season,schedule,stats):
+    """The study reads only completed prior seasons, so it is saved and reused until one of its
+    inputs changes. Computing it takes ~25s, on every refresh."""
+    import hashlib,json
+    from app.data import content_stamp
+    cache_path=Path(cache_path);years=range(season-2,season)
+    inputs=[content_stamp(cache_path/name) for y in years for name in (f'depth_{y}.parquet',f'snaps_{y}.parquet',f'stats_{y}.parquet')]+[content_stamp(cache_path/'players.parquet')]
+    games=sorted((gid,str(g.get('home_score')),str(g.get('away_score'))) for gid,g in schedule.items() if int(g['season']) in years)
+    key=hashlib.sha256(json.dumps([season,inputs,games,len(stats)>0]).encode()).hexdigest()
+    target=cache_path/'replacement_study.json'
+    try:
+        saved=json.loads(target.read_text())
+        if saved.get('key')==key:return saved['study']
+    except (OSError,ValueError):pass
+    study=replacement_study(cache_path,season,schedule,stats)
+    try:target.write_text(json.dumps({'key':key,'study':study}))
+    except (OSError,TypeError,ValueError):pass
+    return study
+
+
 def replacement_study(cache_path,season,schedule,stats):
     gsis,_=id_maps(cache_path);examples=[];xs=[];ys=[];weights=[];counts={};performance={}
     stat_lookup={(r['game_id'],str(r['player_id'])):r for r in stats.to_dict('records')} if not stats.empty else {}

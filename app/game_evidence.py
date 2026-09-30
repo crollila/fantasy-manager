@@ -51,6 +51,45 @@ def provenance(path):
         return {'file': path.name, 'status': 'local cache; retrieval metadata unavailable'}
 
 
+def pbp_metrics(pbp):
+    """Efficiency and tendency metrics per game/offense, computed for all teams at once.
+
+    A team needs 20 plays before any of its metrics count: a partial feed is never read as
+    a full box score. Grouped aggregations replace a Python loop over every game and team.
+    """
+    keys = ['game_id', 'posteam']
+    counts = pbp.groupby(keys).size()
+    complete = set(counts[counts >= 20].index)
+    tables = {}
+
+    def rate(flags, mask, minimum, name):
+        part = pd.DataFrame({'game_id': pbp.game_id.to_numpy()[mask], 'posteam': pbp.posteam.to_numpy()[mask], 'v': flags[mask]})
+        grouped = part.groupby(keys).v
+        n, mean = grouped.size(), grouped.mean()
+        tables[name] = mean[n >= minimum].to_dict()
+
+    epa = pd.to_numeric(pbp.epa, errors='coerce').to_numpy(dtype=float, na_value=np.nan)
+    has_epa = ~np.isnan(epa)
+    rate(epa, has_epa, 20, 'epa_per_play')
+    rate((epa > 0).astype(float), has_epa, 20, 'success_rate')
+    if 'yards_gained' in pbp:
+        yards = pd.to_numeric(pbp.yards_gained, errors='coerce').to_numpy(dtype=float, na_value=np.nan)
+        rate((yards >= 20).astype(float), ~np.isnan(yards), 20, 'explosive_rate')
+    if {'score_differential', 'game_seconds_remaining'} <= set(pbp):
+        neutral = ((pbp.score_differential.abs() <= 7) & (pbp.game_seconds_remaining > 120)).fillna(False).to_numpy(dtype=bool)
+        rate((pbp.play_type == 'pass').to_numpy(dtype=float), neutral, 10, 'neutral_pass_rate')
+    if {'fixed_drive', 'yardline_100', 'pass_touchdown', 'rush_touchdown'} <= set(pbp):
+        drives = pbp[keys + ['fixed_drive', 'yardline_100']].assign(offensive_td=pbp[['pass_touchdown', 'rush_touchdown']].max(axis=1))
+        drives = drives.groupby(keys + ['fixed_drive']).agg(deepest=('yardline_100', 'min'), offensive_td=('offensive_td', 'max'))
+        tables['red_zone_td_rate'] = drives[drives.deepest <= 20].groupby(level=[0, 1]).offensive_td.mean().to_dict()
+    out = {}
+    for name, values in tables.items():
+        for key, value in values.items():
+            if key in complete:
+                out.setdefault(key, {})[name] = float(value)
+    return out
+
+
 def observations(cache_path, schedule, season):
     """One record per game/team. No missing-to-zero coercion, no week-zero NGS."""
     cache_path = Path(cache_path)
@@ -83,23 +122,8 @@ def observations(cache_path, schedule, season):
         for col in ('qb_kneel', 'qb_spike'):
             if col in pbp: pbp = pbp[pbp[col].fillna(0) != 1]
         source = provenance(pbp_path)
-        for (gid, team), part in pbp.groupby(['game_id', 'posteam']):
-            if len(part) < 20: continue # Never interpret a partial feed as a full box score.
-            item = record(gid, team); metrics = {}
-            valid = pd.to_numeric(part.epa, errors='coerce').dropna()
-            if len(valid) >= 20:
-                metrics['epa_per_play'] = float(valid.mean()); metrics['success_rate'] = float((valid > 0).mean())
-            if 'yards_gained' in part:
-                valid_yards = pd.to_numeric(part.yards_gained, errors='coerce').dropna()
-                if len(valid_yards) >= 20: metrics['explosive_rate'] = float((valid_yards >= 20).mean())
-            if {'score_differential', 'game_seconds_remaining'} <= set(part):
-                neutral = part[(part.score_differential.abs() <= 7) & (part.game_seconds_remaining > 120)]
-                if len(neutral) >= 10: metrics['neutral_pass_rate'] = float((neutral.play_type == 'pass').mean())
-            if {'fixed_drive', 'yardline_100', 'pass_touchdown', 'rush_touchdown'} <= set(part):
-                rz = part.groupby('fixed_drive').filter(lambda x: x.yardline_100.min() <= 20)
-                if not rz.empty:
-                    rz=rz.assign(offensive_td=rz[['pass_touchdown','rush_touchdown']].max(axis=1))
-                    metrics['red_zone_td_rate'] = float(rz.groupby('fixed_drive').offensive_td.max().mean())
+        for (gid, team), metrics in pbp_metrics(pbp).items():
+            item = record(gid, team)
             for key, value in metrics.items():
                 if finite(value) is not None: item['metrics'][key] = value; item['sources'][key] = source
 
