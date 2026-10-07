@@ -1,0 +1,66 @@
+/* Theme tokens for the newer views, plus the dark theme. Loaded after professional.css.
+   Dark mode is opt-in via the header toggle, or follows the system when set to "System". */
+:root{--surface:#fff;--surface-2:#f7f7f6;--surface-3:#f1f1ef;--ink:#242424;--muted:#606060;--rule:#dedede;--link:#263e57;--good:#2f7a55;--bad:#a8432f;--accent:#263e57;--bar-away:#b9c4ce;--bar-home:#263e57;--good-bg:#edf5ef;--bad-bg:#fbf0ed}
+:root[data-theme=dark]{color-scheme:dark;--surface:#171b21;--surface-2:#1d222a;--surface-3:#252b34;--ink:#e6e9ed;--muted:#9aa4b0;--rule:#2f3640;--link:#8fb8e0;--good:#5cc28d;--bad:#ef8a73;--accent:#8fb8e0;--bar-away:#4a5563;--bar-home:#8fb8e0;--good-bg:#173226;--bad-bg:#3a201b;background:#0f1216;color:var(--ink)}
+
+/* ---- dark overrides of the existing surfaces ---- */
+:root[data-theme=dark] body,:root[data-theme=dark] .home,:root[data-theme=dark] .shell,:root[data-theme=dark] main{background:#0f1216;color:var(--ink)}
+:root[data-theme=dark] .home-top{background:#13171c;border-bottom-color:var(--rule)}
+:root[data-theme=dark] .home .brand,:root[data-theme=dark] .home h1,:root[data-theme=dark] .home h2,:root[data-theme=dark] .home h3,:root[data-theme=dark] h1,:root[data-theme=dark] h2,:root[data-theme=dark] h3{color:var(--ink)}
+:root[data-theme=dark] .home .muted,:root[data-theme=dark] .muted,:root[data-theme=dark] .home small,:root[data-theme=dark] small,:root[data-theme=dark] .home label,:root[data-theme=dark] label,:root[data-theme=dark] .eyebrow,:root[data-theme=dark] .home .eyebrow,:root[data-theme=dark] .home .brand small,:root[data-theme=dark] .privacy-dot,:root[data-theme=dark] .game-date,:root[data-theme=dark] .research-toolbar small{color:var(--muted)}
+:root[data-theme=dark] a,:root[data-theme=dark] .home a,:root[data-theme=dark] code,:root[data-theme=dark] .home .text-button,:root[data-theme=dark] .text-button{color:var(--link)}
+:root[data-theme=dark] button,:root[data-theme=dark] .home button{background:var(--surface-2);color:var(--ink);border-color:#3a424d}
+:root[data-theme=dark] button:hover,:root[data-theme=dark] .home button:hover{background:var(--surface-3);border-color:#5a6573}
+:root[data-theme=dark] .primary,:root[data-theme=dark] .home .primary,:root[data-theme=dark] .back-home{background:#dfe5ec;border-color:#dfe5ec;color:#111}
+:root[data-theme=dark] .primary:hover,:root[data-theme=dark] .home .primary:hover{background:#fff;border-color:#fff}
+:root[data-theme=dark] input,:root[data-theme=dark] select,:root[data-theme=dark] textarea,:root[data-theme=dark] .home input,:root[data-theme=dark] .home select{background:#11151a;color:var(--ink);border-color:#3a424d}
+:root[data-theme=dark] .home .home-tabs,:root[data-theme=dark] .home-tabs,:root[data-theme=dark] .home header,:root[data-theme=dark] .home footer,:root[data-theme=dark] footer{border-color:var(--rule)}
+:root[data-theme=dark] .home .home-tabs button{background:transparent;color:var(--muted);border-color:transparent}
+:root[data-theme=dark] .home .home-tabs button:hover{background:var(--surface-2);color:var(--ink)}
+:root[data-theme=dark] .home .home-tabs button.selected{color:var(--ink);border-bottom-color:var(--ink);background:transparent}
+:root[data-theme=dark] .card,:root[data-theme=dark] .home .card,:root[data-theme=dark] .home .welcome,:root[data-theme=dark] .modal,:root[data-theme=dark] .home .modal,:root[data-theme=dark] .recommendation,:root[data-theme=dark] .home .recommendation,:root[data-theme=dark] .home .game-card,:root[data-theme=dark] .home .league-card,:root[data-theme=dark] .home .empty,:root[data-theme=dark] .empty{background:var(--surface);color:var(--ink);border-color:var(--rule)}
+:root[data-theme=dark] .home .game-card:hover{background:var(--surface-2);border-color:#5a6573}
+:root[data-theme=dark] .home .league-card.selected{background:var(--surface-2);border-color:var(--ink);box-shadow:inset 3px 0 var(--ink)}
+:root[data-theme=dark] .home .league-card strong,:root[data-theme=dark] .score-row,:root[data-theme=dark] .home .game-pick strong,:root[data-theme=dark] .game-pick{color:var(--ink)}
+:root[data-theme=dark] .game-pick{border-top-color:var(--rule)}
+:root[data-theme=dark] .card>p,:root[data-theme=dark] .home .card>p,:root[data-theme=dark] .welcome p,:root[data-theme=dark] .explain,:root[data-theme=dark] .learning-steps p{color:var(--muted)}
+:root[data-theme=dark] td,:root[data-theme=dark] .home td{border-bottom-color:var(--rule)}
+:root[data-theme=dark] th,:root[data-theme=dark] .home th,:root[data-theme=dark] .home td:first-child{color:var(--muted);border-bottom-color:#3a424d}
+:root[data-theme=dark] .home .alert,:root[data-theme=dark] .alert{background:#16261d;border-color:#2b4636;color:#bfe0cc}
+:root[data-theme=dark] .home .alert.error,:root[data-theme=dark] .alert.error,:root[data-theme=dark] .error{background:#331c18;border-color:#5b2f27;color:#f2b8aa}
+:root[data-theme=dark] .home .warning,:root[data-theme=dark] .warning{background:#2c2614;border-color:#4d4223;color:#e6cf92}
+:root[data-theme=dark] .home .status{background:#16261d;color:#9fd3b4}:root[data-theme=dark] .home .status.caution{background:#2c2614;color:#e6cf92}
+:root[data-theme=dark] .welcome-icon,:root[data-theme=dark] .reliability-value,:root[data-theme=dark] .review-outcomes section,:root[data-theme=dark] .review-learning,:root[data-theme=dark] .review-status,:root[data-theme=dark] .team-head,:root[data-theme=dark] .pick{background:var(--surface-2);color:var(--ink);border-color:var(--rule)}
+:root[data-theme=dark] .reliability-value span{background:#2d4257}
+:root[data-theme=dark] .review-metrics b,:root[data-theme=dark] .learning-steps strong,:root[data-theme=dark] .home .ev strong,:root[data-theme=dark] .ev strong,:root[data-theme=dark] .strategy{color:var(--link)!important}
+:root[data-theme=dark] .home .modal pre,:root[data-theme=dark] pre{color:#c3cad3}
+:root[data-theme=dark] aside{background:#13171c;border-right-color:var(--rule);color:var(--ink)}
+:root[data-theme=dark] nav button.active{background:var(--surface-3);color:var(--ink)}
+:root[data-theme=dark] .learning-steps,:root[data-theme=dark] .learning-steps>div,:root[data-theme=dark] .review-scoreboard,:root[data-theme=dark] .game-review details{border-color:var(--rule)}
+:root[data-theme=dark] .team-logo{filter:drop-shadow(0 0 1px #fff3)}
+
+/* ---- shared styles for the week history, power rankings and market views ---- */
+.theme-toggle{display:inline-flex;align-items:center;gap:6px}
+.week-picker{align-items:center;gap:18px}.week-picker label{flex-direction:row;align-items:center;gap:10px;font-size:13px}.week-picker select{min-width:250px}.week-picker>span{flex:1;font-size:13px}
+.week-summary{margin:20px 0}.week-summary .card{margin:0}.week-summary h2{margin:6px 0}.week-summary p{margin:0;font-size:13px}
+.week-layout{justify-content:space-between}.segmented{display:inline-flex}.home .segmented button{border-radius:0;padding:7px 14px}.home .segmented button+button{border-left:0}.home .segmented button.selected{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.history-card{cursor:default}.home .history-card.hit{box-shadow:inset 3px 0 var(--good)}.home .history-card.miss{box-shadow:inset 3px 0 var(--bad)}
+.history-card .game-date span{font-weight:600}.history-card.hit .game-date span{color:var(--good)}.history-card.miss .game-date span{color:var(--bad)}
+.history-head,.history-row{display:grid;grid-template-columns:1fr 52px 52px 46px;align-items:center;gap:6px;text-align:right}
+.history-head small{font-size:9px;letter-spacing:.1em}.history-row{margin:9px 0;color:var(--ink)}.history-row strong{display:flex;align-items:center;gap:8px;font-size:18px;text-align:left;font-weight:500}.history-row strong small{font-size:9px}
+.history-row span{font-size:14px;color:var(--muted)}.history-row b{font-size:22px;font-weight:400}.history-row.winner b,.history-row.winner strong{font-weight:700}
+.prob-bar{display:flex;height:5px;margin:12px 0 0;border-radius:3px;overflow:hidden;background:var(--surface-3)}.prob-bar span:first-child{background:var(--bar-away)}.prob-bar span:last-child{background:var(--bar-home)}
+.market-line{display:flex;flex-direction:column;gap:3px;margin-top:10px;font-size:11px;color:var(--muted)}
+.power-table td{vertical-align:middle}.home .power-table th:nth-child(n+3),.home .power-table td:nth-child(n+3){text-align:right}.power-row{cursor:pointer}.power-row:hover td{background:var(--surface-2)}
+.rank-cell{white-space:nowrap}.home .power-table td.rank-cell{font-size:16px;color:var(--ink)}.rank-cell small{display:inline!important;margin-left:6px;font-size:10px}.rank-cell .up{color:var(--good)}.rank-cell .down{color:var(--bad)}
+.team-cell{display:inline-flex;align-items:center;gap:10px;font-size:15px;color:var(--ink)}
+.rating-cell{position:relative;min-width:150px;height:22px;display:flex;align-items:center;justify-content:flex-end}.rating-cell:before{content:'';position:absolute;left:50%;top:2px;bottom:2px;border-left:1px solid var(--rule)}
+.rating-bar{position:absolute;top:6px;height:10px;opacity:.55}.rating-bar.pos{background:var(--good)}.rating-bar.neg{background:var(--bad)}.rating-cell b{position:relative;font-weight:600;background:var(--surface);padding-left:4px}
+.rank-spark polyline{stroke:var(--accent);stroke-width:1.5}.rank-spark circle{fill:var(--accent)}
+.power-detail td{background:var(--surface-2)}.power-detail-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;white-space:normal;text-align:left}.power-detail-grid p{margin:4px 0 0;font-size:13px;color:var(--ink)}.home .power-detail td{text-align:left!important}
+.backtest-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:20px 0}.backtest-grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.backtest-grid .card{margin:0}.backtest-grid h2{margin:6px 0}.backtest-grid p{margin:0;font-size:13px}
+.pos-num{color:var(--good)}.neg-num{color:var(--bad)}
+.equity svg{width:100%;height:auto;display:block}.equity .axis{stroke:var(--rule)}.equity .zero{stroke:var(--muted);stroke-dasharray:3 3}.equity text{fill:var(--muted);font-size:10px}
+.verdict{display:inline-block;padding:3px 8px;font-size:12px;border-radius:2px}.verdict.win{background:var(--good-bg);color:var(--good)}.verdict.loss{background:var(--bad-bg);color:var(--bad)}
+@media(max-width:850px){.backtest-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.power-detail-grid{grid-template-columns:1fr 1fr}.week-picker select{min-width:0;width:100%}.week-picker label{width:100%}}
+@media(max-width:520px){.backtest-grid{grid-template-columns:1fr}.power-detail-grid{grid-template-columns:1fr}}

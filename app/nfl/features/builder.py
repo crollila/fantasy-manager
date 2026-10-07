@@ -64,6 +64,48 @@ def family_of(name: str) -> str:
     return "other"
 
 
+def add_matchup_columns(frame: pl.DataFrame) -> pl.DataFrame:
+    """Home-minus-away differences and matchup interactions derived from the side columns.
+
+    Shared with the power rankings, which pair every team against every other one.
+    """
+    diffs = []
+    for key in DIFF_KEYS:
+        h, a = f"home_{key}", f"away_{key}"
+        if h in frame.columns and a in frame.columns:
+            diffs.append((pl.col(h) - pl.col(a)).alias(f"diff_{key}"))
+    frame = frame.with_columns(diffs)
+    mx = []
+    def add_mx(name: str, expr: pl.Expr, cols: list[str]):
+        if all(c in frame.columns for c in cols):
+            mx.append(expr.alias(name))
+    add_mx("mx_home_pass", pl.col("home_off_adj_epa_pass") + pl.col("away_def_adj_epa_pass"), ["home_off_adj_epa_pass", "away_def_adj_epa_pass"])
+    add_mx("mx_away_pass", pl.col("away_off_adj_epa_pass") + pl.col("home_def_adj_epa_pass"), ["away_off_adj_epa_pass", "home_def_adj_epa_pass"])
+    add_mx("mx_home_rush", pl.col("home_off_adj_epa_rush") + pl.col("away_def_adj_epa_rush"), ["home_off_adj_epa_rush", "away_def_adj_epa_rush"])
+    add_mx("mx_away_rush", pl.col("away_off_adj_epa_rush") + pl.col("home_def_adj_epa_rush"), ["away_off_adj_epa_rush", "home_def_adj_epa_rush"])
+    add_mx("mx_home_total", pl.col("home_off_adj_epa_play") + pl.col("away_def_adj_epa_play"), ["home_off_adj_epa_play", "away_def_adj_epa_play"])
+    add_mx("mx_away_total", pl.col("away_off_adj_epa_play") + pl.col("home_def_adj_epa_play"), ["away_off_adj_epa_play", "home_def_adj_epa_play"])
+    add_mx("mx_net", (pl.col("home_off_adj_epa_play") + pl.col("away_def_adj_epa_play")) - (pl.col("away_off_adj_epa_play") + pl.col("home_def_adj_epa_play")), ["home_off_adj_epa_play", "away_def_adj_epa_play", "away_off_adj_epa_play", "home_def_adj_epa_play"])
+    add_mx("mx_home_points_drive", pl.col("home_off_adj_points_drive") + pl.col("away_def_adj_points_drive"), ["home_off_adj_points_drive", "away_def_adj_points_drive"])
+    add_mx("mx_away_points_drive", pl.col("away_off_adj_points_drive") + pl.col("home_def_adj_points_drive"), ["away_off_adj_points_drive", "home_def_adj_points_drive"])
+    add_mx("mx_home_explosive", pl.col("home_explosive20__ewm") + pl.col("away_explosive20_allowed__ewm"), ["home_explosive20__ewm", "away_explosive20_allowed__ewm"])
+    add_mx("mx_away_explosive", pl.col("away_explosive20__ewm") + pl.col("home_explosive20_allowed__ewm"), ["away_explosive20__ewm", "home_explosive20_allowed__ewm"])
+    add_mx("mx_home_pressure", pl.col("home_sack_rate__ewm") + pl.col("away_sack_rate_allowed__ewm"), ["home_sack_rate__ewm", "away_sack_rate_allowed__ewm"])
+    add_mx("mx_away_pressure", pl.col("away_sack_rate__ewm") + pl.col("home_sack_rate_allowed__ewm"), ["away_sack_rate__ewm", "home_sack_rate_allowed__ewm"])
+    add_mx("mx_home_qb_vs_pass_d", pl.col("home_qb_epa_career") + pl.col("away_def_adj_epa_pass"), ["home_qb_epa_career", "away_def_adj_epa_pass"])
+    add_mx("mx_away_qb_vs_pass_d", pl.col("away_qb_epa_career") + pl.col("home_def_adj_epa_pass"), ["away_qb_epa_career", "home_def_adj_epa_pass"])
+    add_mx("mx_pace", pl.col("home_sec_per_play_neutral__ewm") + pl.col("away_sec_per_play_neutral__ewm"), ["home_sec_per_play_neutral__ewm", "away_sec_per_play_neutral__ewm"])
+    add_mx("mx_pass_rate", pl.col("home_pass_rate_neutral__ewm") + pl.col("away_pass_rate_neutral__ewm"), ["home_pass_rate_neutral__ewm", "away_pass_rate_neutral__ewm"])
+    add_mx("mx_home_rz", pl.col("home_rz_td_rate__ewm") + pl.col("away_rz_td_rate_allowed__ewm"), ["home_rz_td_rate__ewm", "away_rz_td_rate_allowed__ewm"])
+    add_mx("mx_away_rz", pl.col("away_rz_td_rate__ewm") + pl.col("home_rz_td_rate_allowed__ewm"), ["away_rz_td_rate__ewm", "home_rz_td_rate_allowed__ewm"])
+    add_mx("mx_home_third", pl.col("home_third_conv__ewm") + pl.col("away_third_conv_allowed__ewm"), ["home_third_conv__ewm", "away_third_conv_allowed__ewm"])
+    add_mx("mx_away_third", pl.col("away_third_conv__ewm") + pl.col("home_third_conv_allowed__ewm"), ["away_third_conv__ewm", "home_third_conv_allowed__ewm"])
+    add_mx("mx_wind_pass", pl.col("wx_wind_over10") * (pl.col("home_pass_rate_neutral__ewm") + pl.col("away_pass_rate_neutral__ewm")), ["wx_wind_over10", "home_pass_rate_neutral__ewm", "away_pass_rate_neutral__ewm"])
+    add_mx("mx_elo_x_qbchange", pl.col("elo_diff") * (pl.col("home_qb_changed") - pl.col("away_qb_changed")), ["elo_diff", "home_qb_changed", "away_qb_changed"])
+    frame = frame.with_columns(mx)
+    return frame
+
+
 def build_features(horizon: str = "pregame", root: Path | None = None, write: bool = True) -> pl.DataFrame:
     p = paths(root)
     hours = HORIZONS[horizon]
@@ -123,41 +165,7 @@ def build_features(horizon: str = "pregame", root: Path | None = None, write: bo
     frame = frame.join(elo, on="game_id", how="left").join(ctx.drop(["season", "week", "kickoff_utc"]), on="game_id", how="left").join(ref, on="game_id", how="left").join(mkt, on="game_id", how="left")
     frame = frame.rename({"home_league_epa_play": "league_epa_play", "home_league_epa_pass": "league_epa_pass", "home_league_epa_rush": "league_epa_rush", "home_league_success_rate": "league_success_rate", "home_league_points_drive": "league_points_drive", "home_league_epa_neutral": "league_epa_neutral", "home_league_explosive20": "league_explosive20", "home_eff_games": "eff_games"})
     frame = frame.with_columns([pl.col("home_elo_pre").alias("home_elo_pre"), pl.col("away_elo_pre").alias("away_elo_pre")])
-    # Differences and matchup interactions.
-    diffs = []
-    for key in DIFF_KEYS:
-        h, a = f"home_{key}", f"away_{key}"
-        if h in frame.columns and a in frame.columns:
-            diffs.append((pl.col(h) - pl.col(a)).alias(f"diff_{key}"))
-    frame = frame.with_columns(diffs)
-    mx = []
-    def add_mx(name: str, expr: pl.Expr, cols: list[str]):
-        if all(c in frame.columns for c in cols):
-            mx.append(expr.alias(name))
-    add_mx("mx_home_pass", pl.col("home_off_adj_epa_pass") + pl.col("away_def_adj_epa_pass"), ["home_off_adj_epa_pass", "away_def_adj_epa_pass"])
-    add_mx("mx_away_pass", pl.col("away_off_adj_epa_pass") + pl.col("home_def_adj_epa_pass"), ["away_off_adj_epa_pass", "home_def_adj_epa_pass"])
-    add_mx("mx_home_rush", pl.col("home_off_adj_epa_rush") + pl.col("away_def_adj_epa_rush"), ["home_off_adj_epa_rush", "away_def_adj_epa_rush"])
-    add_mx("mx_away_rush", pl.col("away_off_adj_epa_rush") + pl.col("home_def_adj_epa_rush"), ["away_off_adj_epa_rush", "home_def_adj_epa_rush"])
-    add_mx("mx_home_total", pl.col("home_off_adj_epa_play") + pl.col("away_def_adj_epa_play"), ["home_off_adj_epa_play", "away_def_adj_epa_play"])
-    add_mx("mx_away_total", pl.col("away_off_adj_epa_play") + pl.col("home_def_adj_epa_play"), ["away_off_adj_epa_play", "home_def_adj_epa_play"])
-    add_mx("mx_net", (pl.col("home_off_adj_epa_play") + pl.col("away_def_adj_epa_play")) - (pl.col("away_off_adj_epa_play") + pl.col("home_def_adj_epa_play")), ["home_off_adj_epa_play", "away_def_adj_epa_play", "away_off_adj_epa_play", "home_def_adj_epa_play"])
-    add_mx("mx_home_points_drive", pl.col("home_off_adj_points_drive") + pl.col("away_def_adj_points_drive"), ["home_off_adj_points_drive", "away_def_adj_points_drive"])
-    add_mx("mx_away_points_drive", pl.col("away_off_adj_points_drive") + pl.col("home_def_adj_points_drive"), ["away_off_adj_points_drive", "home_def_adj_points_drive"])
-    add_mx("mx_home_explosive", pl.col("home_explosive20__ewm") + pl.col("away_explosive20_allowed__ewm"), ["home_explosive20__ewm", "away_explosive20_allowed__ewm"])
-    add_mx("mx_away_explosive", pl.col("away_explosive20__ewm") + pl.col("home_explosive20_allowed__ewm"), ["away_explosive20__ewm", "home_explosive20_allowed__ewm"])
-    add_mx("mx_home_pressure", pl.col("home_sack_rate__ewm") + pl.col("away_sack_rate_allowed__ewm"), ["home_sack_rate__ewm", "away_sack_rate_allowed__ewm"])
-    add_mx("mx_away_pressure", pl.col("away_sack_rate__ewm") + pl.col("home_sack_rate_allowed__ewm"), ["away_sack_rate__ewm", "home_sack_rate_allowed__ewm"])
-    add_mx("mx_home_qb_vs_pass_d", pl.col("home_qb_epa_career") + pl.col("away_def_adj_epa_pass"), ["home_qb_epa_career", "away_def_adj_epa_pass"])
-    add_mx("mx_away_qb_vs_pass_d", pl.col("away_qb_epa_career") + pl.col("home_def_adj_epa_pass"), ["away_qb_epa_career", "home_def_adj_epa_pass"])
-    add_mx("mx_pace", pl.col("home_sec_per_play_neutral__ewm") + pl.col("away_sec_per_play_neutral__ewm"), ["home_sec_per_play_neutral__ewm", "away_sec_per_play_neutral__ewm"])
-    add_mx("mx_pass_rate", pl.col("home_pass_rate_neutral__ewm") + pl.col("away_pass_rate_neutral__ewm"), ["home_pass_rate_neutral__ewm", "away_pass_rate_neutral__ewm"])
-    add_mx("mx_home_rz", pl.col("home_rz_td_rate__ewm") + pl.col("away_rz_td_rate_allowed__ewm"), ["home_rz_td_rate__ewm", "away_rz_td_rate_allowed__ewm"])
-    add_mx("mx_away_rz", pl.col("away_rz_td_rate__ewm") + pl.col("home_rz_td_rate_allowed__ewm"), ["away_rz_td_rate__ewm", "home_rz_td_rate_allowed__ewm"])
-    add_mx("mx_home_third", pl.col("home_third_conv__ewm") + pl.col("away_third_conv_allowed__ewm"), ["home_third_conv__ewm", "away_third_conv_allowed__ewm"])
-    add_mx("mx_away_third", pl.col("away_third_conv__ewm") + pl.col("home_third_conv_allowed__ewm"), ["away_third_conv__ewm", "home_third_conv_allowed__ewm"])
-    add_mx("mx_wind_pass", pl.col("wx_wind_over10") * (pl.col("home_pass_rate_neutral__ewm") + pl.col("away_pass_rate_neutral__ewm")), ["wx_wind_over10", "home_pass_rate_neutral__ewm", "away_pass_rate_neutral__ewm"])
-    add_mx("mx_elo_x_qbchange", pl.col("elo_diff") * (pl.col("home_qb_changed") - pl.col("away_qb_changed")), ["elo_diff", "home_qb_changed", "away_qb_changed"])
-    frame = frame.with_columns(mx)
+    frame = add_matchup_columns(frame)
     frame = frame.sort(["kickoff_utc", "game_id"])
     numeric_types = (pl.Float64, pl.Float32, pl.Int64, pl.Int32, pl.Int16, pl.Int8, pl.UInt32, pl.UInt64, pl.Boolean)
     feature_cols = [c for c, t in zip(frame.columns, frame.dtypes) if c not in ID_COLUMNS + TARGETS + ["home_score", "away_score", "margin", "total_points"] and not c.endswith("_qb_id") and t in numeric_types]

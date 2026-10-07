@@ -534,6 +534,43 @@ def intelligence_state():
     return state(store)
 
 
+@app.get("/api/intelligence/weeks")
+def forecast_weeks():
+    """Weeks that have saved pregame forecasts, newest first, with their pick record."""
+    from app.forecast_history import weeks
+    return weeks(store)
+
+
+@app.get("/api/intelligence/weeks/{season}/{week}")
+def forecast_week(season:int,week:int):
+    """The last pregame forecast for every game of a week next to its final score."""
+    from app.forecast_history import week as week_history
+    from app.market_backtest import kickoff_lookup
+    return week_history(store,season,week,kickoff_lookup())
+
+
+@app.get("/api/power-rankings")
+def power_rankings_route():
+    """Team power ratings from the champion model, with week-by-week rank history."""
+    from app.nfl.power import cached_power_rankings
+    return cached_power_rankings()
+
+
+@app.get("/api/nfl/learning-check")
+def nfl_learning_check():
+    """Out-of-sample check that each week's results actually change and improve the forecasts."""
+    from app.nfl.learning_check import cached_learning_check
+    return cached_learning_check()
+
+
+@app.get("/api/markets/backtest")
+def markets_backtest(threshold:float=0.05,staking:str='flat',origin:str='all'):
+    """Hypothetical profit from betting the model's edge against Kalshi and Polymarket kickoff prices."""
+    from app.market_backtest import backtest
+    if staking not in ('flat','kelly') or origin not in ('all','live','walk-forward'):raise HTTPException(400,'Unknown staking or origin')
+    return backtest(store,max(0.,min(threshold,.5)),staking,origin)
+
+
 @app.post("/api/intelligence/refresh")
 def intelligence_refresh():
     from app.intelligence import refresh_intelligence

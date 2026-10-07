@@ -1,0 +1,388 @@
+{
+ "generated": "2026-10-07",
+ "seasons": [
+  2022,
+  2023,
+  2024,
+  2025
+ ],
+ "method": "Each season predicted by the champion configuration trained only on earlier seasons. \"Updated\" uses the real point-in-time inputs that absorb every completed game; \"frozen\" keeps every result-driven input (Elo, margin/efficiency ratings, recent form, QB stats) at each team's week-1 state. Injuries, rest, weather and other game context are real in both.",
+ "pooled": {
+  "weeks 1-4": {
+   "updated": {
+    "games": 254,
+    "log_loss": 0.6498007586905482,
+    "brier": 0.2294865013556102,
+    "accuracy": 0.6338582677165354,
+    "margin_mae": 9.845450383526153
+   },
+   "frozen": {
+    "games": 254,
+    "log_loss": 0.6436566436226625,
+    "brier": 0.22664820796494128,
+    "accuracy": 0.6299212598425197,
+    "margin_mae": 9.77991762433438
+   },
+   "mean_abs_prob_change": 0.04042795737275015
+  },
+  "weeks 5-9": {
+   "updated": {
+    "games": 289,
+    "log_loss": 0.6458160393393219,
+    "brier": 0.2257805566383097,
+    "accuracy": 0.6539792387543253,
+    "margin_mae": 10.062612401093034
+   },
+   "frozen": {
+    "games": 289,
+    "log_loss": 0.6681295421290302,
+    "brier": 0.23678172512766862,
+    "accuracy": 0.6124567474048442,
+    "margin_mae": 10.423337076250318
+   },
+   "mean_abs_prob_change": 0.08712814510531565
+  },
+  "weeks 10-18": {
+   "updated": {
+    "games": 541,
+    "log_loss": 0.6027787183771462,
+    "brier": 0.2087816189140612,
+    "accuracy": 0.6691312384473198,
+    "margin_mae": 9.54559094118087
+   },
+   "frozen": {
+    "games": 541,
+    "log_loss": 0.679764968830655,
+    "brier": 0.2426540697628326,
+    "accuracy": 0.5785582255083179,
+    "margin_mae": 10.643801641843464
+   },
+   "mean_abs_prob_change": 0.11234006907840952
+  },
+  "all regular season": {
+   "updated": {
+    "games": 1084,
+    "log_loss": 0.625270770035516,
+    "brier": 0.2181651365731583,
+    "accuracy": 0.6568265682656826,
+    "margin_mae": 9.75367117959394
+   },
+   "frozen": {
+    "games": 1084,
+    "log_loss": 0.6682020971336072,
+    "brier": 0.23733802133457912,
+    "accuracy": 0.5996309963099631,
+    "margin_mae": 10.38173304208381
+   },
+   "mean_abs_prob_change": 0.08870092774917958
+  }
+ },
+ "by_season": {
+  "2022": {
+   "weeks 1-4": {
+    "updated": {
+     "games": 63,
+     "log_loss": 0.6915380200523268,
+     "brier": 0.24796039031869452,
+     "accuracy": 0.6190476190476191,
+     "margin_mae": 8.627917009584955
+    },
+    "frozen": {
+     "games": 63,
+     "log_loss": 0.6736067541686426,
+     "brier": 0.23990702480455833,
+     "accuracy": 0.6507936507936508,
+     "margin_mae": 8.383241678067433
+    },
+    "mean_abs_prob_change": 0.03864324505679162
+   },
+   "weeks 5-9": {
+    "updated": {
+     "games": 72,
+     "log_loss": 0.6689168366933063,
+     "brier": 0.23617557742088824,
+     "accuracy": 0.625,
+     "margin_mae": 9.674842781946943
+    },
+    "frozen": {
+     "games": 72,
+     "log_loss": 0.6919937417160064,
+     "brier": 0.24648863505060378,
+     "accuracy": 0.625,
+     "margin_mae": 9.962165493584715
+    },
+    "mean_abs_prob_change": 0.07593538376432335
+   },
+   "weeks 10-18": {
+    "updated": {
+     "games": 134,
+     "log_loss": 0.568292448785903,
+     "brier": 0.19405397339439762,
+     "accuracy": 0.7014925373134329,
+     "margin_mae": 8.693036389901769
+    },
+    "frozen": {
+     "games": 134,
+     "log_loss": 0.6432656535718979,
+     "brier": 0.22642283325465282,
+     "accuracy": 0.6268656716417911,
+     "margin_mae": 9.62576108527883
+    },
+    "mean_abs_prob_change": 0.11094568533119134
+   },
+   "all regular season": {
+    "updated": {
+     "games": 269,
+     "log_loss": 0.6240895748792776,
+     "brier": 0.217953080294539,
+     "accuracy": 0.6617100371747212,
+     "margin_mae": 8.938506573986553
+    },
+    "frozen": {
+     "games": 269,
+     "log_loss": 0.6634140241442797,
+     "brier": 0.23495161316897442,
+     "accuracy": 0.6319702602230484,
+     "margin_mae": 9.421701584675487
+    },
+    "mean_abs_prob_change": 0.0845689403482538
+   }
+  },
+  "2023": {
+   "weeks 1-4": {
+    "updated": {
+     "games": 64,
+     "log_loss": 0.633780516959501,
+     "brier": 0.2218064529115716,
+     "accuracy": 0.65625,
+     "margin_mae": 11.523395892204386
+    },
+    "frozen": {
+     "games": 64,
+     "log_loss": 0.6337844779180475,
+     "brier": 0.22137449232471823,
+     "accuracy": 0.6875,
+     "margin_mae": 11.544998191716893
+    },
+    "mean_abs_prob_change": 0.043716860036100924
+   },
+   "weeks 5-9": {
+    "updated": {
+     "games": 72,
+     "log_loss": 0.6509185922763098,
+     "brier": 0.22868812408730418,
+     "accuracy": 0.625,
+     "margin_mae": 9.667179773770458
+    },
+    "frozen": {
+     "games": 72,
+     "log_loss": 0.6173395303277289,
+     "brier": 0.2143423237453386,
+     "accuracy": 0.6388888888888888,
+     "margin_mae": 9.626239842385448
+    },
+    "mean_abs_prob_change": 0.0838434520208427
+   },
+   "weeks 10-18": {
+    "updated": {
+     "games": 136,
+     "log_loss": 0.6568807433472768,
+     "brier": 0.23259659028210816,
+     "accuracy": 0.625,
+     "margin_mae": 10.00409212160905
+    },
+    "frozen": {
+     "games": 136,
+     "log_loss": 0.698259947154617,
+     "brier": 0.2507160887417737,
+     "accuracy": 0.5147058823529411,
+     "margin_mae": 10.664147007973972
+    },
+    "mean_abs_prob_change": 0.10302308002687775
+   },
+   "all regular season": {
+    "updated": {
+     "games": 272,
+     "log_loss": 0.6498671795019559,
+     "brier": 0.229023140437475,
+     "accuracy": 0.6323529411764706,
+     "margin_mae": 10.272392681438914
+    },
+    "frozen": {
+     "games": 272,
+     "log_loss": 0.6616691381741892,
+     "brier": 0.23418383414458666,
+     "accuracy": 0.5882352941176471,
+     "margin_mae": 10.59666597796358
+    },
+    "mean_abs_prob_change": 0.08399171496862685
+   }
+  },
+  "2024": {
+   "weeks 1-4": {
+    "updated": {
+     "games": 64,
+     "log_loss": 0.6973785382502686,
+     "brier": 0.2514609049975496,
+     "accuracy": 0.578125,
+     "margin_mae": 10.431512956838475
+    },
+    "frozen": {
+     "games": 64,
+     "log_loss": 0.6844480582853926,
+     "brier": 0.2460601167981697,
+     "accuracy": 0.546875,
+     "margin_mae": 10.317132183281764
+    },
+    "mean_abs_prob_change": 0.04047371574575302
+   },
+   "weeks 5-9": {
+    "updated": {
+     "games": 74,
+     "log_loss": 0.5889212278142296,
+     "brier": 0.19984575300620633,
+     "accuracy": 0.7297297297297297,
+     "margin_mae": 9.659362719683966
+    },
+    "frozen": {
+     "games": 74,
+     "log_loss": 0.6520647974871455,
+     "brier": 0.23012291610116317,
+     "accuracy": 0.5945945945945946,
+     "margin_mae": 10.529885167006
+    },
+    "mean_abs_prob_change": 0.08697589065416989
+   },
+   "weeks 10-18": {
+    "updated": {
+     "games": 134,
+     "log_loss": 0.5656376150132149,
+     "brier": 0.19037497812994414,
+     "accuracy": 0.7238805970149254,
+     "margin_mae": 9.706971215639419
+    },
+    "frozen": {
+     "games": 134,
+     "log_loss": 0.662760082255939,
+     "brier": 0.23532891560964023,
+     "accuracy": 0.6044776119402985,
+     "margin_mae": 11.059205387487987
+    },
+    "mean_abs_prob_change": 0.11861792825370747
+   },
+   "all regular season": {
+    "updated": {
+     "games": 272,
+     "log_loss": 0.6029699916104446,
+     "brier": 0.20732474526365793,
+     "accuracy": 0.6911764705882353,
+     "margin_mae": 9.864499313933667
+    },
+    "frozen": {
+     "games": 272,
+     "log_loss": 0.66495338884783,
+     "brier": 0.23643756602301735,
+     "accuracy": 0.5882352941176471,
+     "margin_mae": 10.740593691220099
+    },
+    "mean_abs_prob_change": 0.09162255919902046
+   }
+  },
+  "2025": {
+   "weeks 1-4": {
+    "updated": {
+     "games": 63,
+     "log_loss": 0.5760050462012286,
+     "brier": 0.19649136266767417,
+     "accuracy": 0.6825396825396826,
+     "margin_mae": 8.798975675476802
+    },
+    "frozen": {
+     "games": 63,
+     "log_loss": 0.5822965023890739,
+     "brier": 0.19902678216735062,
+     "accuracy": 0.6349206349206349,
+     "margin_mae": 8.874298444271439
+    },
+    "mean_abs_prob_change": 0.03887800865235504
+   },
+   "weeks 5-9": {
+    "updated": {
+     "games": 71,
+     "log_loss": 0.6765142764084318,
+     "brier": 0.23932124841439967,
+     "accuracy": 0.6338028169014085,
+     "margin_mae": 11.277134065459434
+    },
+    "frozen": {
+     "games": 71,
+     "log_loss": 0.7121781278041134,
+     "brier": 0.25663371460707474,
+     "accuracy": 0.5915492957746479,
+     "margin_mae": 11.58827786602882
+    },
+    "mean_abs_prob_change": 0.10196819507740418
+   },
+   "weeks 10-18": {
+    "updated": {
+     "games": 137,
+     "log_loss": 0.6191304890344868,
+     "brier": 0.21754919744436937,
+     "accuracy": 0.6277372262773723,
+     "margin_mae": 9.772698584297673
+    },
+    "frozen": {
+     "games": 137,
+     "log_loss": 0.7137375673242792,
+     "brier": 0.25769145492697765,
+     "accuracy": 0.5693430656934306,
+     "margin_mae": 11.220476119406317
+    },
+    "mean_abs_prob_change": 0.11682269088419665
+   },
+   "all regular season": {
+    "updated": {
+     "games": 271,
+     "log_loss": 0.6241391458797076,
+     "brier": 0.21835795031499802,
+     "accuracy": 0.6420664206642066,
+     "margin_mae": 9.936289220319546
+    },
+    "frozen": {
+     "games": 271,
+     "log_loss": 0.6827725957491879,
+     "brier": 0.24377642191380566,
+     "accuracy": 0.5904059040590406,
+     "margin_mae": 10.764441387059131
+    },
+    "mean_abs_prob_change": 0.09460530535066676
+   }
+  }
+ },
+ "refit_coefficient_drift": [
+  {
+   "model": "nfl-forecast-fv1-20260914T014809Z",
+   "coef_correlation_with_previous": 0.9993587361869932,
+   "relative_change": 0.035842873963208774,
+   "training_games": 7290
+  },
+  {
+   "model": "nfl-forecast-fv1-20260923T012554Z",
+   "coef_correlation_with_previous": 0.9987956390445182,
+   "relative_change": 0.04917355703865679,
+   "training_games": 7308
+  },
+  {
+   "model": "nfl-forecast-fv1-20260930T052859Z",
+   "coef_correlation_with_previous": 0.9995057793215755,
+   "relative_change": 0.031522475967593735,
+   "training_games": 7324
+  },
+  {
+   "model": "nfl-forecast-fv1-20261007T065522Z",
+   "coef_correlation_with_previous": 0.9997714884435952,
+   "relative_change": 0.021362581500990668,
+   "training_games": 7340
+  }
+ ]
+}

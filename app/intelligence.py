@@ -171,6 +171,18 @@ def refresh_intelligence(store,season=None,cache_path=None):
         from app.player_model import summary as point_model_summary
         report['player_point_model']=point_model_summary(point_model)
         report['automatic_refit']=refit
+        try:
+            progress('Updating power rankings')
+            from app.nfl.power import cached_power_rankings
+            cached_power_rankings()
+        except Exception as exc:log.warning('power rankings unavailable: %s',exc)
+        try:
+            from app.nfl.learning_check import cached_learning_check
+            cached_learning_check()
+        except Exception as exc:log.warning('learning check unavailable: %s',exc)
+        progress('Recording Kalshi and Polymarket kickoff prices for finished games')
+        from app.market_backtest import refresh_live_prices
+        report['market_prices']=refresh_live_prices(store)
         set_meta(store,'intelligence-report',report)
         set_meta(store,'intelligence-status',{'state':'complete','updated_at':now(),'stage':'Forecasts and results updated'})
         return {'season':season,'week':week,'games':len(games),'updated_at':report['updated_at']}

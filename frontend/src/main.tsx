@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './style.css';
 import {Lineup} from './Lineup';
 import {Home} from './Home';
+import './theme';
 type League={id:string;name:string;season:number;teams:number;my_team:number;slots:Record<string,number>;bench:number;mode:string;settings_verified:boolean;team_names:string[];draft_type:string;[key:string]:unknown};
 type Pick={number:number;team:number;player_id:string};
 type Player={id:string;name:string;position:string;team:string;mean:number;median:number;p10:number;p90:number;vorp:number;vonp?:number;gone?:number|null;bust:number;breakout:number;adp:number|null;tier:number;warnings:string[];independent:number;market:number|null;top3:number;top5:number;top12:number;expected_games:number;championship_probability?:number|null;championship_delta?:number|null;delta_ci95?:number[];next_targets?:{id:string;probability:number}[]};
@@ -58,3 +59,4 @@ function Root(){const [advanced,setAdvanced]=useState(false);return advanced?<><
 createRoot(document.getElementById('root')!).render(<Root/>);
 
 import './professional.css';
+import './theme.css';
