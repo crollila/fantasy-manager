@@ -577,7 +577,7 @@ def intelligence_refresh():
     if os.environ.get('FANTASY_DISABLE_AUTO_REFRESH')=='1':return {'id':'disabled','status':'complete','kind':'intelligence'}
     with job_lock:
         running=next((j.copy() for j in jobs.values() if j['kind']=='intelligence' and j['status'] in ('queued','running')),None)
-    return running or submit('intelligence',lambda:refresh_intelligence(store))
+    return running or submit('intelligence',lambda:refresh_intelligence(store,wait=True))
 
 
 from app.game_benchmarks import BenchmarkImport

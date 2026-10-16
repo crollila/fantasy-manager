@@ -36,6 +36,14 @@ def current_week(schedule,season,as_of):
     return int(min(upcoming,key=kickoff)['week']) if upcoming else 18
 
 
+def live_week(season=None,cache_path=None,as_of=None):
+    """This week's number from the cached schedule, independent of whether the last refresh finished."""
+    as_of=as_of or datetime.now(timezone.utc);season=season or (as_of.year if as_of.month>=3 else as_of.year-1)
+    schedule=read_frame(Path(cache_path or DATA/'cache')/'schedules.parquet')
+    if schedule.empty or not ((schedule.get('season')==season)&(schedule.get('game_type')=='REG')).any():return None
+    return current_week(schedule,season,as_of)
+
+
 def state(store):
     report=get_meta(store,'intelligence-report',{})
     accuracy=dashboard(store)
@@ -43,13 +51,21 @@ def state(store):
     with store.connect() as c:results=[json.loads(r[0]) for r in c.execute('SELECT body FROM game_results')]
     from app.game_benchmarks import comparison
     forecasts=saved_games(store)
-    return report|{'refresh':get_meta(store,'intelligence-status',{'state':'not_started'}),'accuracy':accuracy,'learning':learning_dashboard(store),'player_learning':player_learning_summary(store),'diagnostics':diagnostics(forecasts,results),'external_comparisons':comparison(forecasts,results)}
+    return report|{'current_week':live_week(report.get('season')) or report.get('week'),'refresh':get_meta(store,'intelligence-status',{'state':'not_started'}),'accuracy':accuracy,'learning':learning_dashboard(store),'player_learning':player_learning_summary(store),'diagnostics':diagnostics(forecasts,results),'external_comparisons':comparison(forecasts,results)}
 
 
-def refresh_intelligence(store,season=None,cache_path=None):
+def refresh_intelligence(store,season=None,cache_path=None,wait=False):
     cache_path=Path(cache_path or DATA/'cache');as_of=datetime.now(timezone.utc)
     season=season or (as_of.year if as_of.month>=3 else as_of.year-1)
-    if not _lock.acquire(blocking=False):return {'status':'already running'}
+    if not _lock.acquire(blocking=False):
+        if not wait:return {'status':'already running'}
+        # Join the refresh already in flight (e.g. the startup one): callers that act on the
+        # report afterwards, like the team sync, must not read the previous week's report.
+        with _lock:pass
+        status=get_meta(store,'intelligence-status',{})
+        if status.get('state')=='error':raise RuntimeError(status.get('error') or 'Refresh failed')
+        report=get_meta(store,'intelligence-report',{})
+        return {'status':'joined running refresh','season':report.get('season'),'week':report.get('week'),'updated_at':report.get('updated_at')}
     def progress(stage):set_meta(store,'intelligence-status',{'state':'running','stage':stage,'started_at':as_of.isoformat()})
     try:
         progress('Refreshing schedules, statistics, snaps and play-by-play')

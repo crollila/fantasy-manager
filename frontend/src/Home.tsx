@@ -36,10 +36,10 @@ export function Home({api,onAdvanced}:{api:Request;onAdvanced:()=>void}){
   try{
    if(value&&!connections.some(c=>c.url===value))await api('/connections',{url:value,name:'My ESPN team'});
    let result:SyncResult;
-   if(window.fantasyDesktop)result=await window.fantasyDesktop.connect({url:value,week:research?.week??1});
+   if(window.fantasyDesktop)result=await window.fantasyDesktop.connect({url:value,week:research?.current_week??research?.week??1});
    else {
     if(!value)throw new Error('Paste your ESPN My Team link below. The Windows application also supports private leagues through its ESPN sign-in window.');
-    const u=new URL(value);result=await api('/espn/sync',{league_id:u.searchParams.get('leagueId'),my_team_id:Number(u.searchParams.get('teamId')),season:Number(u.searchParams.get('seasonId')||new Date().getFullYear()),week:research?.week??1});
+    const u=new URL(value);result=await api('/espn/sync',{league_id:u.searchParams.get('leagueId'),my_team_id:Number(u.searchParams.get('teamId')),season:Number(u.searchParams.get('seasonId')||new Date().getFullYear()),week:research?.current_week??research?.week??1});
    }
    await reload();if(window.fantasyDesktop)setSessionStatus(await window.fantasyDesktop.status());if(result.league){setSelected(result.league.id);setNotice(`${result.league.team_names[result.league.my_team]} connected.`);setAdding(false);setUrl('');}
   }catch(e){setError(String(e));await reload();}finally{setBusy(false);}
@@ -63,7 +63,7 @@ export function Home({api,onAdvanced}:{api:Request;onAdvanced:()=>void}){
  {!ready&&!error&&<div className="empty">Opening your saved teams…</div>}
  {ready&&!cards.length&&<section className="welcome"><div className="welcome-icon">01</div><h2>Your best lineup starts here.</h2><p>Connect an ESPN team to compare every starter and bench player.<br/>We’ll account for your scoring rules, available projections and injury reports.</p><button className="primary" disabled={busy} onClick={()=>{setAdding(true);if(window.fantasyDesktop)connect();}}>Connect my first team</button><small>Prefer to explore first? Open Advanced tools for a clearly labeled demo.</small></section>}
  {connectionEvents[selected]&&connectionEvents[selected].state!=='connected'&&<div className="alert" role="status"><span>{connectionEvents[selected].message}</span>{connection&&<button disabled={busy} onClick={()=>connect(connection.url)}>Open ESPN</button>}</div>}{connection&&!league&&<section className="welcome"><h2>Your team link is saved.</h2><p>Import its scoring rules and roster from ESPN. If ESPN asks you to sign in, finish that step and choose <b>Retry import</b> at the top.</p><button className="primary" disabled={busy} onClick={()=>connect(connection.url)}>{busy?'Waiting for ESPN…':`Import ${connection.name}`}</button></section>}
- {league&&<Lineup key={selected} api={api} leagueId={selected} beforeAnalyze={refresh} currentWeek={research?.week} updatedAt={teamsUpdated}/>}
+ {league&&<Lineup key={selected} api={api} leagueId={selected} beforeAnalyze={refresh} currentWeek={research?.current_week??research?.week} updatedAt={teamsUpdated}/>}
  </>}
  <footer>Estimates, not guarantees. Review late injury news before kickoff.{window.fantasyDesktop&&<button className="text-button" onClick={()=>window.fantasyDesktop?.openData()}>Open local data folder</button>}</footer></div></div>;
 }

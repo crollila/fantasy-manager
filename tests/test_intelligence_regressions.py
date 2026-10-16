@@ -113,3 +113,30 @@ def test_home_win_is_graded_correctly_across_team_code_spellings(tmp_path):
     assert graded['winner'] == 'LAR' and graded['pick'] == 'LA'
     assert graded['winner_result'] == 'W'
     assert graded['review']['right'][0].startswith('Winner: picked LA')
+
+
+def test_refresh_request_waits_for_running_refresh_instead_of_reporting_stale_week(tmp_path):
+    # Startup refresh holds the lock; the UI's refresh job must not return before it finishes,
+    # or the team sync that follows reads last week's report.
+    import threading, time
+    from app import intelligence
+    store=Store(tmp_path);initialize(store)
+    intelligence.set_meta(store,'intelligence-report',{'season':2026,'week':5})
+    intelligence._lock.acquire()
+    def finish():
+        time.sleep(.2)
+        intelligence.set_meta(store,'intelligence-report',{'season':2026,'week':6})
+        intelligence.set_meta(store,'intelligence-status',{'state':'complete'})
+        intelligence._lock.release()
+    threading.Thread(target=finish).start()
+    assert intelligence.refresh_intelligence(store)=={'status':'already running'}
+    assert intelligence.refresh_intelligence(store,wait=True)['week']==6
+
+
+def test_live_week_follows_schedule_not_last_report(tmp_path):
+    from app.intelligence import live_week
+    rows=[{'season':2026,'game_type':'REG','week':w,'gameday':f'2026-10-{d:02d}','gametime':'13:00'} for w,d in ((5,11),(6,18),(7,25))]
+    pd.DataFrame(rows).to_parquet(tmp_path/'schedules.parquet')
+    assert live_week(2026,tmp_path,datetime(2026,10,16,22,tzinfo=timezone.utc))==6
+    assert live_week(2025,tmp_path,datetime(2026,10,16,22,tzinfo=timezone.utc)) is None
+    assert live_week(2026,tmp_path/'missing',datetime(2026,10,16,22,tzinfo=timezone.utc)) is None

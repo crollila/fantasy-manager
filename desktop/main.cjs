@@ -62,7 +62,8 @@ async function start(){
  ipcMain.handle('espn-connect',async(event,options)=>{trusted(event);return connect(options);});
  ipcMain.handle('refresh-saved',async event=>{
   trusted(event);const report=await local('/intelligence'),connections=await local('/connections');let synced=0;const errors=[];
-  const week=report.week||1;
+  // The live schedule week, not the last finished report's: that report can be a week old.
+  const week=report.current_week||report.week||1;
   for(const connection of connections){
    const target=teamLink(connection.url);if(!target||(report.season&&target.season!==report.season))continue;
    try {await sync(target,week);synced++;try{await local(`/leagues/${target.league_id}/lineup`,{week,risk:'balanced',refresh_injuries:false});}catch{errors.push({league_id:target.league_id,code:'lineup_unavailable',message:connection.name+': roster saved; lineup data are not ready yet.'});}}
