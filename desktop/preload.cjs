@@ -6,5 +6,8 @@ contextBridge.exposeInMainWorld('fantasyDesktop', {
   refresh: options => ipcRenderer.invoke('espn-refresh', options),
   refreshSaved: () => ipcRenderer.invoke('refresh-saved'),
   connections: () => ipcRenderer.invoke('connections'),
-  openData: () => ipcRenderer.invoke('open-data')
+  openData: () => ipcRenderer.invoke('open-data'),
+  updateStatus: () => ipcRenderer.invoke('update-status'),
+  installUpdate: () => ipcRenderer.invoke('update-install'),
+  onUpdate: callback => {const listener=(_event,status)=>callback(status);ipcRenderer.on('update-event',listener);return ()=>ipcRenderer.removeListener('update-event',listener);}
 });

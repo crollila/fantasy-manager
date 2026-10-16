@@ -1,13 +1,13 @@
 {
   "name": "fantasy-manager-desktop",
   "productName": "Fantasy Manager",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Local fantasy football lineups, injuries and draft intelligence",
   "author": "crollila",
   "main": "main.cjs",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win nsis --x64",
+    "dist": "electron-builder --win nsis --x64 --publish never",
     "test": "node --test *.test.cjs"
   },
   "devDependencies": {
@@ -25,6 +25,7 @@
       "connection.cjs",
       "espn-client.cjs",
       "espn-session.cjs",
+      "updater.cjs",
       "package.json",
       "icon.ico"
     ],
@@ -53,7 +54,19 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "deleteAppDataOnUninstall": false,
-      "artifactName": "Fantasy-Manager-Setup-${version}.${ext}"
-    }
+      "artifactName": "Fantasy-Manager-Setup-${version}.${ext}",
+      "include": "installer.nsh"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "crollila",
+        "repo": "fantasy-manager",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.8.10"
   }
 }

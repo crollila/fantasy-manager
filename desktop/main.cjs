@@ -8,7 +8,8 @@ const crypto = require('node:crypto');
 const {teamLink, validOptions} = require('./connection.cjs');
 const {EspnSessionStore}=require('./espn-session.cjs');
 const {readLeague,allowedEspnUrl,failure}=require('./espn-client.cjs');
-let mainWindow, espnWindow, backend, base, token, espnSession, sessionStore, closing=false, quitFlushed=false;
+const {createUpdater}=require('./updater.cjs');
+let mainWindow, espnWindow, backend, base, token, espnSession, sessionStore, updater, closing=false, quitFlushed=false;
 const connectionStates=new Map();
 app.setName('Fantasy Manager');
 const profileDir=process.env.FANTASY_PROFILE_DIR || (process.env.FANTASY_DATA_DIR ? path.join(process.env.FANTASY_DATA_DIR,'desktop-profile') : path.join(app.getPath('appData'),'Fantasy Manager'));
@@ -58,6 +59,8 @@ async function start(){
  ipcMain.handle('connections',event=>{trusted(event);return local('/connections');});
  ipcMain.handle('espn-status',async event=>{trusted(event);return {...await sessionStore.status(),teams:Object.fromEntries(connectionStates)};});
  ipcMain.handle('open-data',event=>{trusted(event);return shell.openPath(dataDir);});
+ ipcMain.handle('update-status',event=>{trusted(event);return updater?updater.status():{state:'unavailable',current:app.getVersion()};});
+ ipcMain.handle('update-install',event=>{trusted(event);if(!updater)throw new Error('Updates are only available in the installed app.');return updater.install();});
  ipcMain.handle('espn-refresh',async(event,options)=>{trusted(event);const {team,week}=validOptions(options);if(!team)throw new Error('Choose a connected team.');return sync(team,week);});
  ipcMain.handle('espn-connect',async(event,options)=>{trusted(event);return connect(options);});
  ipcMain.handle('refresh-saved',async event=>{
@@ -72,7 +75,19 @@ async function start(){
   return {synced,errors};
  });
  await mainWindow.loadURL(base);mainWindow.show();
+ if(app.isPackaged&&!process.env.FANTASY_SMOKE_TEST&&process.env.FANTASY_DISABLE_UPDATES!=='1')startUpdates();
  if(process.env.FANTASY_SMOKE_TEST){await mainWindow.webContents.executeJavaScript('document.title');fs.writeFileSync(path.join(dataDir,'desktop-smoke.json'),JSON.stringify({ok:true,version:app.getVersion(),title:await mainWindow.webContents.executeJavaScript('document.title'),url:base}));app.quit();}
+}
+function startUpdates(){
+ updater=createUpdater({autoUpdater:require('electron-updater').autoUpdater,currentVersion:app.getVersion(),logFile:path.join(dataDir,'updater.log'),
+  send:status=>{if(mainWindow&&!mainWindow.isDestroyed())mainWindow.webContents.send('update-event',status);},
+  beforeInstall:stopForUpdate});
+ updater.schedule();
+}
+async function stopForUpdate(){
+ await Promise.race([sessionStore?.flush().catch(()=>{}),new Promise(resolve=>setTimeout(resolve,3000))]);
+ quitFlushed=true;closing=true;
+ if(backend&&backend.exitCode===null){const exited=new Promise(resolve=>backend.once('exit',resolve));backend.kill();await Promise.race([exited,new Promise(resolve=>setTimeout(resolve,5000))]);}
 }
 function notifyConnection(team,state){
  if(team)connectionStates.set(team.league_id,state);

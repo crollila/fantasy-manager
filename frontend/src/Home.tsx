@@ -11,17 +11,22 @@ type SyncIssue={league_id:string;code:string;message:string};
 type SessionStatus={hasSession:boolean;remembered:boolean;warning:string|null};
 type ConnectionEvent={league_id?:string;state:string;code?:string;message:string;last_success?:string};
 type SyncResult={cancelled?:boolean;league?:League};
+type UpdateStatus={state:string;current:string;version?:string;percent?:number;error?:string};
 declare global {interface Window {fantasyDesktop?:{
  status:()=>Promise<SessionStatus>;onConnection:(callback:(value:ConnectionEvent)=>void)=>()=>void;
  connect:(options:{url?:string;week:number})=>Promise<SyncResult>;
  refresh:(options:{url:string;week:number})=>Promise<SyncResult>;
  refreshSaved:()=>Promise<{synced:number;errors:SyncIssue[]}>;connections:()=>Promise<Connection[]>;openData:()=>Promise<void>;
+ updateStatus:()=>Promise<UpdateStatus>;installUpdate:()=>Promise<void>;onUpdate:(callback:(value:UpdateStatus)=>void)=>()=>void;
 }}}
 
 export function Home({api,onAdvanced}:{api:Request;onAdvanced:()=>void}){
  const [sessionStatus,setSessionStatus]=useState<SessionStatus|null>(null),[connectionEvents,setConnectionEvents]=useState<Record<string,ConnectionEvent>>({}),[teamBusy,setTeamBusy]=useState(false),[teamsUpdated,setTeamsUpdated]=useState('');
  const [view,setView]=useState('My teams'),[research,setResearch]=useState<Research|null>(null),[researchBusy,setResearchBusy]=useState(false),[researchJob,setResearchJob]=useState('');
  const [leagues,setLeagues]=useState<League[]>([]),[connections,setConnections]=useState<Connection[]>([]);
+ const [update,setUpdate]=useState<UpdateStatus|null>(null),[installing,setInstalling]=useState(false);
+ useEffect(()=>{const desktop=window.fantasyDesktop;if(!desktop?.onUpdate)return;desktop.updateStatus().then(setUpdate).catch(()=>{});return desktop.onUpdate(setUpdate);},[]);
+ async function installUpdate(){setInstalling(true);try{await window.fantasyDesktop?.installUpdate();}catch(e){setInstalling(false);setError(String(e));}}
  const [selected,setSelected]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[ready,setReady]=useState(false);
  const [adding,setAdding]=useState(false),[url,setUrl]=useState(''),[notice,setNotice]=useState('');
  async function reload(){const b=await api<{leagues:League[]}>('/bootstrap');const ls=b.leagues.filter(l=>l.source==='ESPN league snapshot');setLeagues(ls);const cs=await api<Connection[]>('/connections');setConnections(cs);setSelected(old=>old||ls[0]?.id||cs[0]?.league_id||'');setReady(true);}
@@ -54,6 +59,7 @@ export function Home({api,onAdvanced}:{api:Request;onAdvanced:()=>void}){
  return <div className="home"><div className="home-top"><div className="brand"><strong>Fantasy Manager</strong><small>Football research &amp; lineup decisions</small></div><div className="home-actions"><ThemeToggle/><span className="privacy-dot">{sessionStatus?.hasSession?'ESPN session saved':'Teams saved on this computer'}</span><button onClick={onAdvanced}>Advanced tools</button></div></div>
  <div className="home-content"><div className="home-tabs">{['My teams','Player projections','NFL games','Power rankings','Market backtest','Accuracy','Learning','Data & evidence'].map(v=><button key={v} className={view===v?'selected':''} onClick={()=>setView(v)}>{v}</button>)}</div><header><div><div className="eyebrow">FANTASY FOOTBALL</div><h1>{view==='My teams'?'Your weekly lineup':view==='Player projections'?'Player projections':view==='NFL games'?'NFL game forecasts':view==='Power rankings'?'NFL power rankings':view==='Market backtest'?'Model vs prediction markets':view==='Accuracy'?'Forecast accuracy':view==='Learning'?'Learning from every game':'Data & methodology'}</h1><p className="muted">{view==='My teams'?'Your teams, injury updates and a clear lineup recommendation.':'Updated on app open. Every forecast is saved before its game begins.'}</p></div><button className="primary" disabled={busy} onClick={()=>{setAdding(!adding);setView('My teams');}}>Manage ESPN</button></header>
  {sessionStatus?.warning&&<div className="alert" role="status">{sessionStatus.warning}</div>}{error&&<div className="alert error" role="alert">{error}<button onClick={()=>setError('')}>Dismiss</button></div>}{notice&&<div className="alert" role="status">{notice}</div>}
+ {update?.state==='ready'&&<div className="alert" role="status"><span>Version {update.version} is ready. Restart to update now, or it installs the next time you close the app. Your teams and history are kept.</span><button className="primary" disabled={installing} onClick={installUpdate}>{installing?'Restarting…':'Restart to update'}</button></div>}
  {view==='Player projections'&&<Projections api={api} updatedAt={research?.updated_at}/>}
  {view!=='My teams'&&view!=='Player projections'&&<Intelligence api={api} report={research} view={view} busy={researchBusy} onRefresh={refreshResearch}/>}
  {view==='My teams'&&<>
@@ -65,5 +71,5 @@ export function Home({api,onAdvanced}:{api:Request;onAdvanced:()=>void}){
  {connectionEvents[selected]&&connectionEvents[selected].state!=='connected'&&<div className="alert" role="status"><span>{connectionEvents[selected].message}</span>{connection&&<button disabled={busy} onClick={()=>connect(connection.url)}>Open ESPN</button>}</div>}{connection&&!league&&<section className="welcome"><h2>Your team link is saved.</h2><p>Import its scoring rules and roster from ESPN. If ESPN asks you to sign in, finish that step and choose <b>Retry import</b> at the top.</p><button className="primary" disabled={busy} onClick={()=>connect(connection.url)}>{busy?'Waiting for ESPN…':`Import ${connection.name}`}</button></section>}
  {league&&<Lineup key={selected} api={api} leagueId={selected} beforeAnalyze={refresh} currentWeek={research?.current_week??research?.week} updatedAt={teamsUpdated}/>}
  </>}
- <footer>Estimates, not guarantees. Review late injury news before kickoff.{window.fantasyDesktop&&<button className="text-button" onClick={()=>window.fantasyDesktop?.openData()}>Open local data folder</button>}</footer></div></div>;
+ <footer>Estimates, not guarantees. Review late injury news before kickoff.{update&&<span className="muted"> Version {update.current}{update.state==='downloading'?` · downloading ${update.version} (${update.percent??0}%)`:update.state==='current'?' · up to date':''}</span>}{window.fantasyDesktop&&<button className="text-button" onClick={()=>window.fantasyDesktop?.openData()}>Open local data folder</button>}</footer></div></div>;
 }
