@@ -23,3 +23,15 @@ test('offline checks are reported and retried on schedule',()=>{
  updater.schedule(5);timers.timeouts[0][0]();u.emit('error',new Error('net::ERR_INTERNET_DISCONNECTED'));
  assert.equal(updater.status().state,'error');timers.intervals[0][0]();assert.equal(u.checks,2);assert.equal(timers.intervals[0][1],6*60*60*1000);
 });
+test('pressing update during the download installs once it finishes',async()=>{
+ const u=fake(),sent=[];const updater=createUpdater({autoUpdater:u,currentVersion:'0.7.1',send:s=>sent.push(s),beforeInstall:async()=>{}});
+ u.emit('update-available',{version:'0.7.2'});await updater.install();
+ assert.equal(u.installed,null);assert.equal(updater.status().installing,true);
+ u.emit('update-downloaded',{version:'0.7.2'});await new Promise(r=>setImmediate(r));
+ assert.deepEqual(u.installed,{silent:true,runAfter:true});
+});
+test('checks immediately at launch',()=>{
+ const u=fake(),timers={timeouts:[],setTimeout:(f,d)=>timers.timeouts.push([f,d]),setInterval:()=>{}};
+ createUpdater({autoUpdater:u,currentVersion:'0.7.1',send:()=>{},beforeInstall:async()=>{},timers}).schedule();
+ assert.equal(timers.timeouts[0][1],0);
+});
