@@ -5,6 +5,10 @@ import json
 import threading
 from pathlib import Path
 import pandas as pd
+# Loaded here, before any worker thread exists: scikit-learn inspects sys.modules['polars'] on
+# every fit and fails on a module another thread is still half-way through importing.
+try:import polars  # noqa: F401
+except ImportError:pass
 from app.storage import DATA,now
 from app.research_sources import refresh_inputs,read_frame,scoreboard,weather_for,depth_charts
 from app.game_model import train_games,game_prediction,kickoff,number,label_pick
@@ -13,7 +17,7 @@ from app.roster_context import cached_replacement_study,current_rosters
 from app.injuries import injury_report
 from app.tracking import initialize,saved_games,save_game,settle_games,settle_players,dashboard
 from app.game_evidence import observations,fit_expectations,expectations
-from app.game_learning import update_learning,apply_learning,archive_artifact,artifact,diagnostics,dashboard as learning_dashboard
+from app.game_learning import update_learning,apply_learning,archive_artifact,discard_artifact,artifact,diagnostics,dashboard as learning_dashboard
 from app.player_learning import fit_correction as fit_player_correction, summary as player_correction_summary
 
 import logging
@@ -68,6 +72,8 @@ def refresh_intelligence(store,season=None,cache_path=None,wait=False):
         return {'status':'joined running refresh','season':report.get('season'),'week':report.get('week'),'updated_at':report.get('updated_at')}
     def progress(stage):set_meta(store,'intelligence-status',{'state':'running','stage':stage,'started_at':as_of.isoformat()})
     try:
+        from app.ledger_compaction import maybe_compact
+        maybe_compact(store,progress)
         progress('Refreshing schedules, statistics, snaps and play-by-play')
         sources=refresh_inputs(season,cache_path)
         schedule=enrich_weather(read_frame(cache_path/'schedules.parquet'),cache_path,season)
@@ -149,7 +155,7 @@ def refresh_intelligence(store,season=None,cache_path=None,wait=False):
         active=artifact(store,learning.get('active'));pending=artifact(store,learning.get('pending'))
         progress('Fetching kickoff weather and saving pregame picks')
         with ThreadPoolExecutor(max_workers=3) as pool:weather=dict(zip([g['game_id'] for g in board],pool.map(lambda g:weather_for(g,cache_path),board)))
-        forecasts=saved_games(store);games=[]
+        forecasts=saved_games(store);games=[];cited=False
         for game in board:
             row=matching[game['espn_id']]
             forecast=forecasts.get(game['game_id'])
@@ -175,8 +181,10 @@ def refresh_intelligence(store,season=None,cache_path=None,wait=False):
                 forecast=apply_learning(forecast,learning,active,pending)
                 # The pick and its stated probability must match the team labels published above.
                 forecast=label_pick(forecast)
-                save_game(store,forecast)
+                cited=save_game(store,forecast) or cited
             games.append(game|{'forecast':forecast,'weather':(forecast or {}).get('weather',weather.get(game['game_id'],{}))})
+        # The coefficients are kept only when a forecast saved in this refresh cites them.
+        if not cited:discard_artifact(store,base_artifact,as_of)
         report={'season':season,'week':week,'updated_at':now(),'games':games,'sources':sources,'model':model,'matchups':matchups,'league_matchups':league_models,'play_calling':calling,'replacement_study':study,'rosters':rosters,'injury_status':health['status'],'process_model':{'metrics':list(process['models']),'method':process['method'],'range_note':process['range_note']},'coverage_notes':['Participation probabilities are separate from points-if-active.','Weather uses city-level forecast coordinates; missing weather receives neutral inputs.','Historical roster effects are observational and shrink toward zero.','Statistical expectations use joint offense/opponent strength; Next Gen Stats cover qualifying players, not every snap.','Current-season play-by-play and player/team stats usually arrive after game days; later corrections update reviews without rewriting picks.','Live route participation and licensed player-prop data are not bundled; unavailable inputs are explicitly missing.','Market schedule lines are a benchmark; no claim of beating closing lines.','Learning tests frozen corrections on future games; insufficient evidence leaves the current scoring model in place.']}
         progress('Projecting and archiving every player with an upcoming game')
         from app.player_archive import archive_projections

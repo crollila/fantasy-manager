@@ -50,6 +50,12 @@ def archive_artifact(store, kind, body, as_of):
     return artifact_id
 
 
+def discard_artifact(store, artifact_id, as_of):
+    """Drop a foundation artifact archived at `as_of` that no saved forecast ended up citing."""
+    with store.connect() as c:
+        c.execute("DELETE FROM game_model_artifacts WHERE id=? AND kind='foundation' AND created_at=?", (artifact_id, as_of.isoformat()))
+
+
 def artifact(store, artifact_id):
     if not artifact_id: return None
     with store.connect() as c:

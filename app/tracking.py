@@ -25,13 +25,75 @@ def initialize(store):
 def date(value):return datetime.fromisoformat(value.replace('Z','+00:00'))
 
 
+# Stamps of when something was fetched or computed. They change on every refresh even when
+# nothing else does, so they never decide whether a new version is stored.
+RUN_STAMPS=frozenset({'fetched_at','market_fetched_at','input_as_of','prediction_timestamp','base_artifact','trained_at'})
+# A postgame review also cites the hash of each whole source file. That hash moves whenever the
+# season file gains a later game, which says nothing about the game under review.
+REVIEW_STAMPS=RUN_STAMPS|{'sha256'}
+
+
+def material(value,ignore=RUN_STAMPS):
+    if isinstance(value,dict):return {k:material(v,ignore) for k,v in value.items() if k not in ignore}
+    if isinstance(value,list):return [material(v,ignore) for v in value]
+    return value
+
+
+def content_fingerprint(value,ignore=RUN_STAMPS):
+    """Hash of everything except run stamps: equal content gives an equal fingerprint."""
+    return hashlib.sha256(json.dumps(material(value,ignore),sort_keys=True,allow_nan=False).encode()).hexdigest()
+
+
+# What a reader of the pick sees. A change here is archived immediately.
+HEADLINE_EXACT=('pick','ats_pick','total_pick','model_version','state','kickoff','market_home_margin','market_total','home_spread_odds','away_spread_odds','over_odds','under_odds','home_moneyline','away_moneyline','market_home_moneyline','market_away_moneyline','injury_source_status')
+HEADLINE_NUMERIC={'home_score':.05,'away_score':.05,'home_win_probability':.005,'away_win_probability':.005}
+DRIFT_HOURS=6
+FINAL_HOURS=2
+
+
+def headline(game):
+    learning=game.get('learning') or {};weather=game.get('weather') or {}
+    return {'exact':[game.get(k) for k in HEADLINE_EXACT],
+            'learning':[learning.get('active_artifact'),(learning.get('candidate') or {}).get('artifact')],
+            'weather':weather.get('status'),
+            'personnel':sorted((side,str(p.get('espn_id')),str(p.get('likely'))) for side,players in (game.get('personnel_snapshot') or {}).items() for p in players or [] if isinstance(p,dict))}
+
+
+def headline_changed(old,new):
+    if headline(old)!=headline(new):return True
+    for key,tolerance in HEADLINE_NUMERIC.items():
+        a,b=old.get(key),new.get(key)
+        if isinstance(a,(int,float)) and isinstance(b,(int,float)):
+            if abs(a-b)>tolerance:return True
+        elif a!=b:return True
+    return False
+
+
+def version_due(old,old_saved_at,new,stamp):
+    """Whether a forecast whose content differs from the last saved version earns a new row.
+
+    Models are refit on every refresh, so secondary numbers drift a little each time while the
+    pick stays put. Such drift is archived once per DRIFT_HOURS window; anything a reader sees
+    is archived at once, and so is every change in the last FINAL_HOURS before kickoff, which
+    keeps the graded (final pregame) version current.
+    """
+    if date(new['kickoff'])-stamp<=timedelta(hours=FINAL_HOURS):return True
+    if headline_changed(old,new):return True
+    window=lambda t:int(t.timestamp()//(DRIFT_HOURS*3600))
+    return window(stamp)!=window(old_saved_at)
+
+
 def save_game(store,game,as_of=None):
     initialize(store);stamp=as_of or datetime.now(timezone.utc)
     if stamp>=date(game['kickoff']) or game.get('state','pre')!='pre':return False
-    body=json.dumps(game,sort_keys=True,allow_nan=False);fingerprint=hashlib.sha256(body.encode()).hexdigest()
+    body=json.dumps(game,sort_keys=True,allow_nan=False);fingerprint=content_fingerprint(game)
     with store.connect() as c:
-        previous=c.execute('SELECT fingerprint FROM game_forecasts WHERE game_id=? ORDER BY id DESC LIMIT 1',(game['game_id'],)).fetchone()
-        if previous and previous[0]==fingerprint:return False
+        previous=c.execute('SELECT fingerprint,created_at,body FROM game_forecasts WHERE game_id=? ORDER BY id DESC LIMIT 1',(game['game_id'],)).fetchone()
+        if previous:
+            if previous['fingerprint']==fingerprint:return False
+            saved=json.loads(previous['body'])
+            # Rows written before fingerprints ignored run stamps are compared by content.
+            if content_fingerprint(saved)==fingerprint or not version_due(saved,date(previous['created_at']),game,stamp):return False
         c.execute('INSERT INTO game_forecasts(game_id,created_at,kickoff,body,fingerprint) VALUES(?,?,?,?,?)',(game['game_id'],stamp.isoformat(),game['kickoff'],body,fingerprint))
     return True
 
@@ -81,7 +143,8 @@ def settle_games(store,games,team_actuals=None):
         result['base_artifact']=forecast.get('base_artifact')
         result['learning_artifact']=forecast.get('learning',{}).get('active_artifact')
         result['learning_eligible_after']=(date(forecast['kickoff'])+timedelta(days=4)).isoformat()
-        body=json.dumps(result,sort_keys=True,allow_nan=False);fingerprint=hashlib.sha256(body.encode()).hexdigest()
+        # A revision is a change in the review itself, not a re-download of the same statistics.
+        body=json.dumps(result,sort_keys=True,allow_nan=False);fingerprint=content_fingerprint(result,REVIEW_STAMPS)
         with store.connect() as c:
             c.execute('INSERT OR IGNORE INTO game_result_versions(game_id,forecast_id,created_at,body,fingerprint) VALUES(?,?,?,?,?)',(game['game_id'],forecast['forecast_id'],now(),body,fingerprint))
             result['review_revisions']=c.execute('SELECT COUNT(*) FROM game_result_versions WHERE game_id=?',(game['game_id'],)).fetchone()[0]
@@ -146,13 +209,16 @@ PROJECTION_FIELDS=('name','position','mean','points_if_active','espn_projection'
 # refreshes with unchanged inputs do not fill the ledger with identical rows.
 CHANGE_FIELDS=('mean','p10','p90','play_probability','injury_status','learned_correction','espn_projection')
 # learned_point_model is a note, not an input: `mean` already moves when the ratio changes.
+# Projections are shown to one decimal. The models are refit on every refresh, which moves
+# every number in the third decimal; that is not a new projection.
+CHANGE_TOLERANCE={'mean':.05,'p10':.05,'p90':.05,'learned_correction':.05,'espn_projection':.05,'play_probability':.005}
 
 
 def unchanged(old,new):
     for k in CHANGE_FIELDS:
         a,b=old.get(k),new.get(k)
         if isinstance(a,(int,float)) and isinstance(b,(int,float)):
-            if abs(float(a)-float(b))>1e-6:return False
+            if abs(float(a)-float(b))>CHANGE_TOLERANCE.get(k,1e-6):return False
         elif a!=b:return False
     return True
 

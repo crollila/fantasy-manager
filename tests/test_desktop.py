@@ -29,3 +29,12 @@ def test_desktop_origin_is_exact(tmp_path, monkeypatch):
         assert client.get('/api/bootstrap', headers={'Origin': 'http://127.0.0.1:19877'}).status_code == 403
         assert client.get('/api/bootstrap', headers={'Origin': 'https://evil.test'}).status_code == 403
         assert client.get('/api/health').json()['instance'] == 'test-instance'
+
+
+def test_backend_caps_native_thread_pools_before_loading_them():
+    """One OpenBLAS buffer and one Polars worker per core cost gigabytes on a many-core PC."""
+    from pathlib import Path
+    text = (Path(__file__).resolve().parents[1] / 'desktop' / 'backend.py').read_text(encoding='utf-8')
+    first_import = min(text.index('import uvicorn'), text.index('from app.api import app'))
+    for name in ('OPENBLAS_NUM_THREADS', 'POLARS_MAX_THREADS'):
+        assert f"os.environ.setdefault('{name}'" in text and text.index(name) < first_import

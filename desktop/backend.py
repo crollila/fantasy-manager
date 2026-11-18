@@ -6,6 +6,11 @@ from pathlib import Path
 if __name__ == '__main__':
     multiprocessing.freeze_support()
     os.environ.setdefault('FANTASY_DATA_DIR', str(Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'Fantasy Manager' / 'data'))
+    # Set before numpy, scipy or polars load. OpenBLAS reserves a buffer per CPU core in each of
+    # numpy and scipy (1.3 GB on a 32-core machine before any work is done), and Polars starts
+    # one worker per core, each keeping the memory it has used. Neither makes a refresh faster.
+    os.environ.setdefault('OPENBLAS_NUM_THREADS', '4')
+    os.environ.setdefault('POLARS_MAX_THREADS', '4')
     import copy
     import logging
     import uvicorn
